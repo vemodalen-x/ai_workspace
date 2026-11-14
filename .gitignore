@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.workspace/
+.env
+*.db*
+playwright-report/
+test-results/
+artifacts/
+
+fleet.local.json
