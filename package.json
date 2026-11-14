@@ -1,0 +1,65 @@
+{
+  "name": "ai-agent-workspace",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node --import tsx scripts/dev.ts",
+    "dev:server": "node --import tsx --watch apps/server/src/index.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "build": "tsc --noEmit && vite build --config apps/web/vite.config.ts && tsup --config tsup.config.ts",
+    "start": "node dist/server/src/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "preview:visual": "node --import tsx scripts/visual-preview.ts",
+    "check:fleet": "node --import tsx scripts/check-fleet.ts",
+    "test:e2e": "playwright test",
+    "test:providers": "node --import tsx --test tests/providers.optional.ts",
+    "seed": "node --import tsx scripts/seed.ts",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:production": "node --import tsx --test tests/production.optional.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.316",
+    "@fastify/static": "10.1.8",
+    "@fastify/websocket": "11.3.6",
+    "@openai/codex-sdk": "0.166.0",
+    "@tanstack/react-query": "5.105.1",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "@xyflow/react": "12.12.0",
+    "fastify": "5.12.7",
+    "lucide-react": "1.66.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "systeminformation": "5.33.19",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "concurrently": "10.0.6",
+    "eslint": "10.14.0",
+    "prettier": "3.9.10",
+    "tsup": "9.0.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5"
+  }
+}
