@@ -12,6 +12,7 @@ export async function fixture() {
     data = join(root, 'data');
   await mkdir(repo);
   await git(repo, ['init', '-b', 'main']);
+  await git(repo, ['config', 'core.autocrlf', 'false']);
   await writeFile(join(repo, 'README.md'), '# Fixture\n');
   await git(repo, ['add', '.']);
   await git(repo, [

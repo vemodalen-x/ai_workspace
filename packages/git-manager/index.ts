@@ -42,10 +42,17 @@ export class GitManager {
   async assertOwned(repo: string, w: Workspace) {
     if (!within(this.root, w.path) || w.cleaned)
       throw new Error('Workspace is not managed or already cleaned');
-    const listing = await git(repo, ['worktree', 'list', '--porcelain']);
+    const path = await realpath(w.path);
+    if (!within(await realpath(this.root), path))
+      throw new Error('Workspace is outside managed root');
+    const listing = await git(repo, ['worktree', 'list', '--porcelain', '-z']);
     if (
-      !listing.split('\n').includes(`worktree ${w.path.replaceAll('\\', '/')}`) &&
-      !listing.split('\n').includes(`worktree ${w.path}`)
+      !listing
+        .split('\0')
+        .some(
+          (field) =>
+            field.startsWith('worktree ') && relative(field.slice('worktree '.length), path) === '',
+        )
     )
       throw new Error('Workspace is not registered');
     const branch = await git(w.path, ['symbolic-ref', '--short', 'HEAD']);

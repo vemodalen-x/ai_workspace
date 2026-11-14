@@ -87,3 +87,20 @@ Snapshot Runs include optional manifest; briefing items add `stale`. Existing ta
 ## v0.5 additions
 
 Approvals may be applying or superseded. POST /api/approvals/:id/reconcile checks a stored intent against the original target ref and returns the current approval. It requires normal local API authentication. GET /api/runs/:id/telemetry prefers telemetryAtFinish for completed experiment windows, with existing lookup behavior for historical records. Local experiment validation artifacts can include metrics and ignoredMetricLines. See [v0.5 semantics](quality-review-v05.md).
+
+## Local command trials
+
+Authenticated endpoints use the existing loopback API. A Trial is an immutable configuration. Each attempt owns its status, measurements, output and Git worktree.
+
+| Method and path                    | Request or result                                                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/projects/:id/trials`    | Supply `title`, `argv`, `experiment` and `allocation` (the existing Task schemas). Saves configuration with the current committed HEAD.                                               |
+| `POST /api/trials/:id/attempts`    | Send `{confirmed:true,requestKey:<UUID>}` after reviewing the command. Replaying the same key returns the original attempt. A new key starts a retry after the previous attempt ends. |
+| `GET /api/snapshot`                | Includes `trials` and `attempts`. Logs and metric arrays are fetched on demand.                                                                                                       |
+| `GET /api/attempts/:id/output`     | Returns `{log,logTruncated,metrics,ignored}`. Metrics use the existing stdout protocol. The most recent value for each (name, unit, step) wins.                                       |
+| `POST /api/attempts/:id/cancel`    | Cancel queued or running work.                                                                                                                                                        |
+| `POST /api/attempts/:id/reconcile` | `{confirmedStopped:true}` releases a quarantined reservation after operator inspection.                                                                                               |
+
+Each command receives `WORKSPACE_TRIAL_ID`, `WORKSPACE_ATTEMPT_ID` and `WORKSPACE_EXPERIMENT` (JSON); training code applies its seed and parameters. GPU allocation sets `CUDA_VISIBLE_DEVICES` to the reserved device, or to an empty value for CPU. Commands run under the controller user's OS permissions. A clean worktree contains the files tracked at the frozen commit; prepare libraries in the local interpreter environment.
+
+Output retains the first 256 KiB of combined stdout/stderr and up to 5,000 distinct samples across 32 metric/unit series per attempt. Failed or cancelled attempts retain observed samples. A running attempt interrupted by a controller crash requires reconciliation. Worktrees and generated files stay on disk for inspection.

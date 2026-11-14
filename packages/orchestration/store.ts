@@ -17,8 +17,11 @@ import type {
   StoredEvent,
 } from '../shared/index.ts';
 import { now } from '../shared/index.ts';
+import type { Trial, TrialAttempt } from '../shared/trials.ts';
 
 export interface Tables {
+  trials: Trial;
+  attempts: TrialAttempt;
   projects: Project;
   tasks: Task;
   sessions: Session;
@@ -30,6 +33,8 @@ export interface Tables {
   artifacts: Artifact;
 }
 const tables: (keyof Tables)[] = [
+  'trials',
+  'attempts',
   'projects',
   'tasks',
   'sessions',
@@ -63,6 +68,16 @@ export class Store {
       CREATE UNIQUE INDEX IF NOT EXISTS workspace_path ON workspaces(json_extract(body,'$.nodeId'),json_extract(body,'$.path'));
       CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT NOT NULL UNIQUE,run_id TEXT,session_id TEXT,project_id TEXT,type TEXT NOT NULL,data TEXT NOT NULL,event_key TEXT UNIQUE,created_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS event_run ON events(run_id,seq);
+      CREATE UNIQUE INDEX IF NOT EXISTS trial_request ON attempts(json_extract(body,'$.requestKey'));
+      CREATE INDEX IF NOT EXISTS trial_queued ON attempts(json_extract(body,'$.state'));
+      CREATE UNIQUE INDEX IF NOT EXISTS trial_active ON attempts(json_extract(body,'$.trialId'))
+        WHERE json_extract(body,'$.state') IN ('queued','starting','running','orphaned');
+      CREATE TABLE IF NOT EXISTS trial_output(
+        attempt_id TEXT PRIMARY KEY REFERENCES attempts(id), log TEXT NOT NULL DEFAULT '',
+        truncated INTEGER NOT NULL DEFAULT 0, ignored INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS trial_metrics(
+        attempt_id TEXT NOT NULL REFERENCES attempts(id), name TEXT NOT NULL, unit TEXT NOT NULL,
+        step INTEGER NOT NULL, value REAL NOT NULL, PRIMARY KEY(attempt_id,name,unit,step));
     `);
   }
   all<K extends keyof Tables>(table: K): Tables[K][] {

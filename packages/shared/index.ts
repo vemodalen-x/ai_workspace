@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Briefing } from './assistant.ts';
+import type { Trial, TrialAttempt } from './trials.ts';
 import type { RunTelemetry, metricsSchema } from './telemetry.ts';
 
 export const providerSchema = z.enum(['mock', 'codex', 'claude']);
@@ -242,6 +243,8 @@ export interface ProviderStatus {
   capabilities: AgentCapabilities;
 }
 export interface Snapshot {
+  trials: Trial[];
+  attempts: TrialAttempt[];
   briefing: Briefing;
   projects: Project[];
   tasks: Task[];

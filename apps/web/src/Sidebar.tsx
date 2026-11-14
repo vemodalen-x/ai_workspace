@@ -52,7 +52,7 @@ export function Sidebar({
       <div className="workspace-chip">
         <span className="avatar">W</span>
         <span>
-          Personal workspace<small>Local-first · v0.7</small>
+          Personal workspace<small>Local-first · v0.8</small>
         </span>
         <Shield size={14} />
       </div>

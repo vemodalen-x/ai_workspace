@@ -28,8 +28,9 @@ test('import → task tree → isolated parallel runs → integration → approv
     await page.getByLabel('Task title').fill(name);
     await page.getByLabel('Description', { exact: true }).fill(prompt);
     if (integration) {
-      await page.getByLabel('Task A: Backend').check();
-      await page.getByLabel('Task B: Frontend').check();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('checkbox', { name: 'Task A: Backend', exact: true }).check();
+      await dialog.getByRole('checkbox', { name: 'Task B: Frontend', exact: true }).check();
       await page.getByLabel('Build an integration worktree').check();
     }
     await page.getByRole('button', { name: 'Save task', exact: true }).click();
@@ -60,13 +61,36 @@ test('import → task tree → isolated parallel runs → integration → approv
 });
 
 test('keyboard opens search and task settings dialog is accessible', async ({ page }) => {
-  await page.goto('/');
+  const repo = await mkdtemp(join(tmpdir(), 'workspace-keyboard-'));
+  const git = (args: string[]) => execFileSync('git', args, { cwd: repo });
+  git(['init', '-b', 'main']);
+  git([
+    '-c',
+    'user.name=Fixture',
+    '-c',
+    'user.email=test@localhost',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'Fixture',
+  ]);
+  const { token } = await (await page.request.get('/api/bootstrap')).json();
+  const headers = { Authorization: 'Bearer ' + token };
+  const project = await page.request.post('/api/projects', {
+    headers,
+    data: { name: 'Keyboard fixture', repoPath: repo },
+  });
+  expect(project.ok()).toBeTruthy();
+  const { id } = await project.json();
+  const task = await page.request.post('/api/projects/' + id + '/tasks', {
+    headers,
+    data: { title: 'Keyboard draft' },
+  });
+  expect(task.ok()).toBeTruthy();
+  await page.goto('/#/project?project=' + id);
   await page.getByLabel('Search workspace').press('ControlOrMeta+k');
   await expect(page.getByLabel('Search workspace')).toBeFocused();
-  await page.getByRole('button', { name: 'Projects', exact: true }).click();
-  const items = page.getByRole('treeitem');
-  test.skip((await items.count()) < 2, 'Run the acceptance test or seed a project first');
-  await items.first().click();
+  await page.getByRole('treeitem').filter({ hasText: 'Keyboard draft' }).click();
   await page.getByRole('button', { name: 'Configure task', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();

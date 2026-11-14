@@ -3089,3 +3089,53 @@ dd {
     padding: 14px;
   }
 }
+.trial-panel {
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.trial-panel h2,
+.trial-command,
+.trial-attempt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.trial-command {
+  justify-content: space-between;
+}
+.trial-command code {
+  flex: 1 1 200px;
+}
+.trial-panel code,
+.modal form > code,
+.modal form > small {
+  overflow-wrap: anywhere;
+}
+.trial-panel details {
+  min-width: 0;
+}
+.trial-panel summary {
+  cursor: pointer;
+}
+.trial-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+}
+.trial-output {
+  display: grid;
+  gap: 10px;
+}
+.trial-curve {
+  margin: 0;
+  color: var(--text);
+}
+.trial-curve svg {
+  width: 100%;
+  max-height: 160px;
+  display: block;
+}

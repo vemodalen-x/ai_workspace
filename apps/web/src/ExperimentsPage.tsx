@@ -1,6 +1,7 @@
 import { usePreference } from './preferences.ts';
 import { FlaskConical, Plus } from 'lucide-react';
 import { ExperimentLedger } from './ExperimentLedger.tsx';
+import { CommandTrials } from './CommandTrials.tsx';
 import type { Run, Snapshot } from '../../../packages/shared/index.ts';
 
 export function ExperimentsPage({
@@ -15,10 +16,18 @@ export function ExperimentsPage({
   onCreate: (projectId?: string) => void;
 }) {
   const [projectId, setProjectId] = usePreference('aw.experiments.project', '');
-  const runs = data.runs.filter((r) => r.manifest?.taskSpec.experiment);
+  const runs = data.runs.filter(
+    (r) => r.manifest?.taskSpec.experiment && (!projectId || r.projectId === projectId),
+  );
+  const trials = data.trials.filter((t) => !projectId || t.projectId === projectId);
+  const executions = [
+    ...runs,
+    ...data.attempts.filter((a) => !projectId || a.projectId === projectId),
+  ];
   const groups = new Set(
     runs.map((r) => JSON.stringify([r.projectId, r.manifest!.taskSpec.experiment!.group])),
   );
+  for (const t of trials) groups.add(JSON.stringify([t.projectId, t.experiment.group]));
   return (
     <>
       <div className="page-heading">
@@ -39,23 +48,40 @@ export function ExperimentsPage({
           <b>{groups.size}</b> experiment groups
         </span>
         <span>
-          <b>{runs.length}</b> recorded runs
+          <b>{executions.length}</b> recorded executions
         </span>
         <span>
-          <b>{runs.filter((r) => ['starting', 'running'].includes(r.state)).length}</b> executing
+          <b>{executions.filter((r) => ['starting', 'running'].includes(r.state)).length}</b>{' '}
+          executing
         </span>
         <span>
-          <b>{runs.filter((r) => r.state === 'failed' || r.state === 'orphaned').length}</b> failed
-          or unknown
+          <b>{executions.filter((r) => r.state === 'failed' || r.state === 'orphaned').length}</b>{' '}
+          failed or unknown
         </span>
       </div>
-      <ExperimentLedger
+      <div className="experiment-filters">
+        <label>
+          Project filter
+          <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            <option value="">All projects</option>
+            {projectId && !data.projects.some((p) => p.id === projectId) && (
+              <option value={projectId}>Unavailable project</option>
+            )}
+            {data.projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <CommandTrials
         data={data}
-        search={search}
-        onRun={onRun}
         projectId={projectId}
         setProjectId={setProjectId}
+        search={search}
       />
+      <ExperimentLedger data={data} search={search} onRun={onRun} projectId={projectId} />
     </>
   );
 }

@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import { Store } from './store.ts';
+import { TrialRunner, occupiedSlots } from './trials.ts';
 import { GitManager, git } from '../git-manager/index.ts';
 import { adapters, providerStatuses, type AgentAdapter } from '../agent-adapters/index.ts';
 import { redact } from '../agent-adapters/process.ts';
@@ -37,6 +38,7 @@ import {
 export class Orchestrator {
   store: Store;
   git: GitManager;
+  trials: TrialRunner;
   providers: ProviderStatus[] = [];
   metrics: Record<string, Metrics> = {};
   telemetry: TelemetryStore;
@@ -57,6 +59,7 @@ export class Orchestrator {
     this.telemetry = new TelemetryStore(this.store.db);
     this.monitor = new NodeMonitor((id, signal) => this.probeRemote(id, signal));
     this.git = new GitManager(join(dataDir, 'worktrees'));
+    this.trials = new TrialRunner(this.store, this.git);
     this.adapters = options?.adapters ?? adapters;
     this.store.put('nodes', {
       id: 'local',
@@ -134,6 +137,8 @@ export class Orchestrator {
           'approvals',
           'artifacts',
           'reservations',
+          'trials',
+          'attempts',
         ].map((k) => [k, this.store.all(k as 'projects')]),
       ),
       events: this.store.latestEvents(150),
@@ -177,7 +182,9 @@ export class Orchestrator {
     const p = this.store.get('projects', id);
     if (
       patch.archived &&
-      this.store.all('runs').some((r) => r.projectId === id && activeStates.includes(r.state))
+      [...this.store.all('runs'), ...this.store.all('attempts')].some(
+        (r) => r.projectId === id && activeStates.includes(r.state),
+      )
     )
       throw new Error('Stop or reconcile active runs before archiving');
     this.store.tx(() => {
@@ -195,7 +202,8 @@ export class Orchestrator {
     const p = this.store.get('projects', id);
     if (
       this.store.all('tasks').some((t) => t.projectId === id) ||
-      this.store.all('sessions').some((s) => s.projectId === id)
+      this.store.all('sessions').some((s) => s.projectId === id) ||
+      this.store.all('trials').some((t) => t.projectId === id)
     )
       throw new Error('Project has history; archive it to preserve records');
     this.store.tx(() => {
@@ -363,13 +371,7 @@ export class Orchestrator {
             });
           continue;
         }
-        const active = this.store
-          .all('runs')
-          .filter(
-            (r) =>
-              r.projectId === project.id && ['starting', 'running', 'orphaned'].includes(r.state),
-          );
-        if (active.length >= project.concurrency) continue;
+        if (occupiedSlots(this.store, project.id) >= project.concurrency) continue;
         try {
           const manifest = captureManifest(this.snapshot(), task);
           assertTransition(run.state, 'starting');
@@ -396,6 +398,7 @@ export class Orchestrator {
         this.running.set(run.id, handle);
         handle.promise = this.execute(run.id, abort).finally(() => this.running.delete(run.id));
       }
+      this.trials.tick(this.metrics.local);
     } finally {
       this.ticking = false;
     }
@@ -926,6 +929,7 @@ export class Orchestrator {
       h.abort.abort();
     }
     await Promise.allSettled([...this.running.values()].map((h) => h.promise));
+    await this.trials.shutdown();
     this.store.close();
   }
   workspaceExists(sessionId: string) {
