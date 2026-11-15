@@ -1,0 +1,51 @@
+name: Publish interactive preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/preview.yml'
+      - 'examples/visual-review/**'
+      - 'apps/web/src/**'
+      - 'packages/shared/**'
+      - 'scripts/visual-preview.ts'
+      - 'package*.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run preview:visual
+      - name: Stage the standalone sample
+        run: |
+          mkdir public-preview
+          cp dist/visual-review.html public-preview/index.html
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public-preview
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - id: publish
+        uses: actions/deploy-pages@v4

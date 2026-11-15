@@ -23,7 +23,7 @@ const chunk = outputs
 if (!chunk || chunk.type !== 'chunk') throw new Error('Missing preview entry');
 const css = await readFile('apps/web/src/styles.css', 'utf8');
 const html =
-  '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Agent Workspace · Visual review</title><style>' +
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Compare a quantization experiment and inspect GPU reservations in AI Agent Workspace using sample data."><title>AI Agent Workspace · Interactive preview</title><style>' +
   css +
   '\nbody{height:auto;min-height:100vh;overflow:auto}.preview-shell{max-width:1100px;margin:auto;padding:clamp(12px,4vw,48px)}.preview-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 22px}.preview-header h1{margin-top:5px}.preview-label{font-size:12px;color:#e6c893}.preview-history{margin-top:20px;padding:20px}.preview-group{margin-bottom:20px;font-size:22px}</style></head><body><div id="root">' +
   renderToString(createElement(VisualReview)) +
