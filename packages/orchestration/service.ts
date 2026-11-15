@@ -524,6 +524,7 @@ export class Orchestrator {
         onPid: (pid: number) => this.store.put('runs', { ...this.store.get('runs', id), pid }),
       };
       let diff: string;
+      abort.signal.throwIfAborted();
       if (session.nodeId === 'local') {
         providerStarted = true;
         await this.adapters[session.provider].run(config, emit);
