@@ -5,7 +5,7 @@ import { readFile, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { fixture, key, settle } from './helpers.ts';
-import { assertDag, assertTree } from '../packages/shared/index.ts';
+import { assertDag, assertTree, type StoredEvent } from '../packages/shared/index.ts';
 import { Orchestrator } from '../packages/orchestration/service.ts';
 import { reserve } from '../packages/resource-manager/index.ts';
 import { git, within } from '../packages/git-manager/index.ts';
@@ -323,7 +323,7 @@ test('schema validation rejects cyclic moves/edges and changes during queued exe
   }
 });
 
-test('SDK interruption with unknown child PID quarantines capacity', async () => {
+test('SDK cancellation releases capacity before dispatch and quarantines an interrupted adapter', async () => {
   const { svc, project } = await fixture();
   try {
     // Inject the deterministic adapter; this does not call Codex or consume quota.
@@ -339,20 +339,36 @@ test('SDK interruption with unknown child PID quarantines capacity', async () =>
         capabilities: svc.adapters.mock.getCapabilities(),
       },
     ];
-    const t = svc.saveTask(project.id, {
-      title: 'SDK cancel fixture',
-      provider: 'codex',
-      description: '[slow]',
-    });
-    const r = svc.enqueue(t.id, { requestKey: key(), allowReal: true });
-    await svc.tick();
-    await wait(120);
-    svc.cancel(r.id);
-    await settle(svc, [r.id]);
-    assert.equal(svc.store.get('runs', r.id).state, 'orphaned');
-    assert.equal(svc.store.get('reservations', r.id).quarantined, true);
-    svc.reconcile(r.id, true);
-    assert.equal(svc.store.all('reservations').length, 0);
+    for (const phase of ['workspace', 'adapter'] as const) {
+      const t = svc.saveTask(project.id, {
+        title: `Cancel at ${phase} startup`,
+        provider: 'codex',
+      });
+      const r = svc.enqueue(t.id, { requestKey: key(), allowReal: true });
+      const starts: string[] = [];
+      const onStart = (event: StoredEvent) => {
+        if (event.runId !== r.id || event.type !== 'SessionStarted') return;
+        const stage = typeof event.data.providerSessionId === 'string' ? 'adapter' : 'workspace';
+        starts.push(stage);
+        if (stage === phase) svc.cancel(r.id);
+      };
+      svc.store.bus.on('event', onStart);
+      try {
+        await settle(svc, [r.id]);
+      } finally {
+        svc.store.bus.off('event', onStart);
+      }
+      if (phase === 'workspace') {
+        assert.deepEqual(starts, ['workspace']);
+        assert.equal(svc.store.get('runs', r.id).state, 'cancelled');
+      } else {
+        assert.deepEqual(starts, ['workspace', 'adapter']);
+        assert.equal(svc.store.get('runs', r.id).state, 'orphaned');
+        assert.equal(svc.store.get('reservations', r.id).quarantined, true);
+        svc.reconcile(r.id, true);
+      }
+      assert.equal(svc.store.all('reservations').length, 0);
+    }
   } finally {
     await svc.shutdown();
   }

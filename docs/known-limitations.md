@@ -1,4 +1,10 @@
-# Current v0.7 boundaries
+# v0.8 command execution
+
+Command trials run on the controller in a fresh Git worktree per attempt. CPU and memory reservations coordinate scheduling. OS-level sandboxing, distributed training and automatic cleanup of trial worktrees are outside this implementation. A user-supplied dataset version identifies the declared data; the training program is responsible for loading and verifying it. Cross-trial comparisons require a matching project, group, dataset, nonempty dataset version, metric and unit. Measurements from failed attempts remain available.
+
+See [verification](verification.md) for current Windows and browser coverage.
+
+# Historical v0.7 boundaries
 
 The workflow refactor and independent Experiments page are delivered. App still coordinates project/session/configuration actions, and the backend Orchestrator remains a later decomposition target. Experiment is still captured task metadata; independent Trial entities, Command Runner and training metric time series are not implemented.
 

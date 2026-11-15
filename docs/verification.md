@@ -1,3 +1,9 @@
+# v0.8 verification, 2026-11-14
+
+Windows with Node 24.19 and Git for Windows passed TypeScript, ESLint, 61 core tests and the web, server and worker production builds. The trial tests use real subprocesses, SQLite and Git worktrees. They cover the frozen commit, fresh retries, failed output, idempotency, competing project slots, cancellation and restart reconciliation.
+
+All nine Playwright scenarios passed using installed Chrome. The command-trial flow creates a draft, confirms the executable and commit, runs twice, compares step readings, refreshes and checks horizontal layout at 390px. Other scenarios cover Agent merge approval, navigation and baseline persistence. Paid provider inference, physical GPU execution and remote SSH training are outside this run.
+
 # Verification record — v0.7, 2026-11-12
 
 This increment changes frontend workflow boundaries, navigation and comparison persistence. Backend execution semantics are unchanged. No real paid inference was launched.

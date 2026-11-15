@@ -67,7 +67,7 @@ export async function createApp(
     const status = e instanceof z.ZodError ? 400 : /not found/.test(e.message) ? 404 : 409;
     reply.code(status).send(redact({ error: e.message.slice(0, 4000) }));
   });
-  app.get('/api/bootstrap', async () => ({ token, version: '0.7.0' }));
+  app.get('/api/bootstrap', async () => ({ token, version: '0.8.0' }));
   app.get('/api/snapshot', async () => service.snapshot());
   app.get('/api/assistant', async () => service.snapshot().briefing);
   app.get('/api/events', async (req) => {
@@ -136,6 +136,27 @@ export async function createApp(
   app.post<{ Params: { id: string } }>('/api/projects/:id/tasks', async (req) =>
     service.serial(async () => service.saveTask(req.params.id, taskInput.parse(req.body))),
   );
+  app.post<{ Params: { id: string } }>('/api/projects/:id/trials', async (req) =>
+    service.serial(() => service.trials.create(req.params.id, req.body)),
+  );
+  app.post<{ Params: { id: string } }>('/api/trials/:id/attempts', async (req) => {
+    const { requestKey } = z
+      .object({ confirmed: z.literal(true), requestKey: z.string().uuid() })
+      .parse(req.body);
+    return service.trials.enqueue(req.params.id, requestKey);
+  });
+  app.get<{ Params: { id: string } }>('/api/attempts/:id/output', async (req) =>
+    service.trials.output(req.params.id),
+  );
+  app.post<{ Params: { id: string } }>('/api/attempts/:id/cancel', async (req) => {
+    service.trials.cancel(req.params.id);
+    return { ok: true };
+  });
+  app.post<{ Params: { id: string } }>('/api/attempts/:id/reconcile', async (req) => {
+    z.object({ confirmedStopped: z.literal(true) }).parse(req.body);
+    service.trials.reconcile(req.params.id);
+    return { ok: true };
+  });
   app.patch<{ Params: { id: string } }>('/api/tasks/:id', async (req) =>
     service.serial(async () => {
       const old = service.store.get('tasks', req.params.id);

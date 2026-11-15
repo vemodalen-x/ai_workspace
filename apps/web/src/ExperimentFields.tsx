@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Task } from '../../../packages/shared/index.ts';
-export function readExperiment(form: FormData) {
-  if (form.get('trackExperiment') !== 'on') return null;
+export function readExperiment(form: FormData, required = false) {
+  if (!required && form.get('trackExperiment') !== 'on') return null;
   let parameters: unknown;
   try {
     parameters = JSON.parse(String(form.get('experimentParameters') || '{}'));
@@ -19,23 +19,27 @@ export function readExperiment(form: FormData) {
 export function ExperimentFields({
   experiment,
   initiallyEnabled = false,
+  required = false,
 }: {
-  experiment: Task['experiment'];
+  experiment?: Task['experiment'];
   initiallyEnabled?: boolean;
+  required?: boolean;
 }) {
   const [enabled, setEnabled] = useState(initiallyEnabled || Boolean(experiment));
   return (
     <section className="advanced">
-      <label className="check-label">
-        <input
-          type="checkbox"
-          name="trackExperiment"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-        />
-        Track as an AI experiment
-      </label>
-      {enabled && (
+      {!required && (
+        <label className="check-label">
+          <input
+            type="checkbox"
+            name="trackExperiment"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+          />
+          Track as an AI experiment
+        </label>
+      )}
+      {(enabled || required) && (
         <>
           <div className="form-grid">
             <label>

@@ -141,9 +141,12 @@ export function Compute({
                 {reservations.map((r) => {
                   const run = data.runs.find((x) => x.id === r.runId);
                   const task = data.tasks.find((t) => t.id === run?.taskId);
-                  const experiment = run?.manifest?.taskSpec.experiment;
+                  const attempt = data.attempts.find((a) => a.id === r.runId);
+                  const trial = attempt && data.trials.find((t) => t.id === attempt.trialId);
+                  const experiment = trial?.experiment ?? run?.manifest?.taskSpec.experiment;
                   return (
                     <div key={r.id}>
+                      {trial && <b>{trial.title} · command trial</b>}
                       {task && (
                         <button className="secondary small" onClick={() => onTask(task)}>
                           {task.title}

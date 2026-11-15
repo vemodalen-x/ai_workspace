@@ -9,13 +9,11 @@ export function ExperimentLedger({
   search = '',
   onRun,
   projectId,
-  setProjectId,
 }: {
   data: Snapshot;
   search?: string;
   onRun?: (run: Run) => void;
   projectId: string;
-  setProjectId: (id: string) => void;
 }) {
   const [group, setGroup] = usePreference('aw.experiments.group', '');
   const runs = data.runs
@@ -71,20 +69,6 @@ export function ExperimentLedger({
       ) : (
         <>
           <div className="experiment-filters">
-            <label>
-              Project filter
-              <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-                <option value="">All projects</option>
-                {projectId && !data.projects.some((p) => p.id === projectId) && (
-                  <option value={projectId}>Unavailable project</option>
-                )}
-                {data.projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Experiment group
               <select value={selected ?? ''} onChange={(e) => setGroup(e.target.value)}>

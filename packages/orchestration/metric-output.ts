@@ -9,6 +9,7 @@ export class MetricOutput {
   private oversized = false;
   private readings = new Map<string, ExperimentMetric>();
   ignored = 0;
+  constructor(private readonly onReading?: (metric: ExperimentMetric) => void) {}
 
   push(chunk: Buffer) {
     let start = 0;
@@ -30,6 +31,7 @@ export class MetricOutput {
   }
   private flush() {
     const line = this.pending.toString('utf8');
+    let reading: ExperimentMetric | undefined;
     if (line.startsWith(prefix)) {
       try {
         if (this.oversized) throw new Error('size');
@@ -38,14 +40,15 @@ export class MetricOutput {
         const key = p.name + ':' + p.unit;
         const previous = this.readings.get(key);
         if (!previous && this.readings.size >= 32) throw new Error('capacity');
-        if (!previous || p.step >= previous.step)
-          this.readings.set(key, { name: p.name, value: p.value, step: p.step, unit: p.unit });
+        reading = { name: p.name, value: p.value, step: p.step, unit: p.unit };
+        if (!previous || p.step >= previous.step) this.readings.set(key, reading);
       } catch {
         this.ignored++;
       }
     }
     this.pending = Buffer.alloc(0);
     this.oversized = false;
+    if (reading) this.onReading?.(reading);
   }
   finish() {
     this.flush();

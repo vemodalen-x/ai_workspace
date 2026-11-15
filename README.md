@@ -1,8 +1,16 @@
 # AI Agent Workspace
 
-一个可部署在个人电脑上的 Local-First AI Coding Agent 工作台。React + TypeScript、Fastify、SQLite、Git worktree。**这是可运行的增量版本 v0.7，不是完整 Phase 3 产品，也不是前端静态 Demo。**
+本地优先的 AI 开发与实验工作台，使用 React、TypeScript、Fastify、SQLite 和 Git worktree。你可以调度 Coding Agent、审批代码集成，也可以在固定提交上直接运行自己的实验脚本。
 
 可运行闭环：导入 Git 项目 → 建立任务树与独立 DAG → 独立 worktree 并行执行 → 持久化事件 / 日志 / Diff → 显式命令验证 → 合并预览 → 用户批准集成。
+
+## v0.8 本地命令实验
+
+1. 导入包含实验脚本的 Git 仓库，在 **Experiments → New trial** 选择项目，填写命令参数数组（例如 `["python","train.py"]`）、实验组、数据版本、seed 和资源预算。
+2. **Save trial** 固定当前提交与配置。**Run trial → Queue attempt** 会显示并执行这条命令。每次重试在同一提交的新 worktree 中启动。脚本可从环境变量 `WORKSPACE_EXPERIMENT` 读取 JSON 格式的 seed、参数和数据集信息。
+3. 脚本向标准输出逐行写入 `WORKSPACE_METRIC {"name":"loss","unit":"","step":1,"value":0.42}`。实验页按 step 绘图，支持切换执行尝试、比较相同指标与单位、查看日志及退出码。命令失败时已收到的读数仍然保留。
+
+命令在本机以当前用户权限运行，使用本机已安装的解释器和依赖。Agent 和命令共用项目并发及 CPU、RAM 和单卡软预留。每次尝试保留工作目录与产物，日志和指标的存储上限见 [Trial API](docs/api-contract.md#local-command-trials)。
 
 ## v0.7 工作流与实验入口重构
 
@@ -10,7 +18,7 @@
 
 Project / Session 的位置、所选任务、详情标签、Tree / Graph 和搜索保存在 URL 中，支持刷新、浏览器前进与后退。Compute 筛选、GPU 排序、Focus 筛选和实验选择保存在浏览器本地。实验页使用完整工作区宽度；任务 Inspector 只在项目和 Session 页面展示。
 
-应用入口、Shell、Sidebar、TaskTree、基础组件和导航状态已分开。执行与数据库接口保持兼容，没有新增付费模型调用或自动启动行为。详细边界见 [本轮重构设计](docs/refactoring-v07.md)。独立 Command Runner / Trial、训练曲线和可靠远程 Worker 属于后续阶段。
+应用入口、Shell、Sidebar、TaskTree、基础组件和导航状态已分开。详细边界见 [v0.7 重构设计](docs/refactoring-v07.md)。
 
 启动仍为 `npm ci` 后 `npm run dev`。离线交互预览通过 `npm run preview:visual` 生成，使用明确标记的示例数据。
 
@@ -55,7 +63,7 @@ Compute fleet 按节点和 GPU UUID 展示真实可获取的利用率、显存�
 
 ## 快速启动
 
-要求：**Node.js 24+、npm、Git 2.38+**。Windows 安装 Git for Windows；SSH 节点需要 OpenSSH 客户端。Linux 已在本次环境验证；Windows 提供兼容代码路径和 CI 矩阵，但本次未做 Windows 实机验证。Codex 原生 Windows 沙箱与进程终止行为应另行验收；需要更成熟的 Linux 执行环境时使用 WSL2。
+要求：**Node.js 24+、npm、Git 2.38+**。Windows 安装 Git for Windows；SSH 节点需要 OpenSSH 客户端。v0.8 已在 Windows 上验证本地命令实验、Git worktree、Mock Agent 和 Chrome 交互。真实 Provider 和远程节点的验证范围见[测试记录](docs/verification.md)。
 
 ```bash
 npm ci

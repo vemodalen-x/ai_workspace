@@ -123,15 +123,36 @@ export async function validateCommand(
   onStdout?: (chunk: Buffer) => void,
 ) {
   if (!argv.length) return;
+  const code = await runLocalCommand(argv, cwd, signal, {
+    env: gpu ? { ...process.env, CUDA_VISIBLE_DEVICES: gpu } : process.env,
+    output: (chunk, stream) => {
+      if (stream === 'stdout') onStdout?.(chunk);
+      emit(chunk.toString().slice(0, 32000));
+    },
+  });
+  if (code !== 0) throw new Error(`Validation command exited with code ${code}`);
+}
+
+export async function runLocalCommand(
+  argv: string[],
+  cwd: string,
+  signal: AbortSignal,
+  options: {
+    env: NodeJS.ProcessEnv;
+    output: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
+    onPid?: (pid: number) => void;
+  },
+) {
   signal.throwIfAborted();
   const child = spawn(argv[0], argv.slice(1), {
     cwd,
-    env: gpu ? { ...process.env, CUDA_VISIBLE_DEVICES: gpu } : process.env,
+    env: options.env,
     shell: false,
     detached: process.platform !== 'win32',
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  if (child.pid) options.onPid?.(child.pid);
   let escalation: NodeJS.Timeout | undefined;
   const stop = () => {
     if (escalation) return;
@@ -139,21 +160,26 @@ export async function validateCommand(
     escalation = setTimeout(() => terminateTree(child, true), 2500);
   };
   signal.addEventListener('abort', stop, { once: true });
-  child.stdout.on('data', (b: Buffer) => {
-    onStdout?.(b);
-    emit(b.toString().slice(0, 32000));
-  });
-  child.stderr.on('data', (b: Buffer) => emit(b.toString().slice(0, 32000)));
+  let outputError: unknown;
+  for (const stream of ['stdout', 'stderr'] as const)
+    child[stream].on('data', (chunk: Buffer) => {
+      if (outputError) return;
+      try {
+        options.output(chunk, stream);
+      } catch (error) {
+        outputError = error;
+        stop();
+      }
+    });
   try {
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise<number>((resolve, reject) => {
       child.on('error', reject);
-      child.on('close', (code) =>
-        signal.aborted
-          ? reject(new Error('Validation interrupted'))
-          : code === 0
-            ? resolve()
-            : reject(new Error(`Validation command exited with code ${code}`)),
-      );
+      child.on('close', (code, bySignal) => {
+        if (outputError) reject(outputError);
+        else if (signal.aborted) reject(new Error('Command interrupted'));
+        else if (code === null) reject(new Error(`Command terminated by ${bySignal}`));
+        else resolve(code);
+      });
     });
   } finally {
     if (escalation) {
