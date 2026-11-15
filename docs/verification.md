@@ -1,3 +1,19 @@
+# v0.8.1 review and verification, 2026-11-15
+
+| Reproduction                                                                                                        | v0.8.0 (`d1cb0ea`)                                           | v0.8.1                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Check the final run in a 30-run graph with 14 pairs of tasks sharing their parents                                  | Read upstream dependency lists 49,151 times                  | Read 30 lists. The result remains current, and changing the root task still marks the final run stale.            |
+| Save a trial, move off its input commit, expire reflogs and prune the temporary repository before its first attempt | Worktree creation fails because Git has discarded the object | The attempt completes at the originally saved SHA. A rejected database insert also removes its newly created ref. |
+| Run a validation command that exits with 7, then separately a command that exits with 0 and modifies tracked code   | Both failure reports record a null exit code                 | Reports retain 7 and 0 respectively. Both runs still fail validation.                                             |
+
+The graph figure counts dependency-list reads during one provenance check. It can be reproduced without timing the machine. Each Git regression uses a disposable repository. From the project root after `npm ci`, run the focused cases with:
+
+```bash
+node --import tsx --test --test-name-pattern="freshness visits|a saved trial|a failed trial save|refuses tracked-code|explicit validation argv" tests/provenance.test.ts tests/trials.test.ts tests/worker.test.ts
+```
+
+Local Windows checks on Node 24.19.0 and Git 2.43.0 passed TypeScript, ESLint, all 64 core tests, the production builds and nine Playwright scenarios in Chrome. The A/B/C seed finished all three Mock runs. The standalone preview was also checked at 1100 × 690 and 390 × 844, including changing the metric and baseline, refreshing the page, and inspecting a second GPU. The displayed measurements use sample data. Live paid inference and remote SSH/GPU workloads were outside this run.
+
 # v0.8 verification, 2026-11-14
 
 Windows with Node 24.19 and Git for Windows passed TypeScript, ESLint, 61 core tests and the web, server and worker production builds. The trial tests use real subprocesses, SQLite and Git worktrees. They cover the frozen commit, fresh retries, failed output, idempotency, competing project slots, cancellation and restart reconciliation.

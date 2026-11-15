@@ -24,6 +24,62 @@ async function until(check: () => boolean) {
   for (let i = 0; i < 400 && !check(); i++) await wait(50);
   assert.ok(check(), 'timed out waiting for attempt');
 }
+
+test('a saved trial can run after its original commit loses its branch and reflog', async () => {
+  const { svc, project, repo } = await fixture();
+  try {
+    await git(repo, ['switch', '--detach']);
+    await git(repo, [
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=test@localhost',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'Temporary experiment',
+    ]);
+    const trial = await svc.trials.create(project.id, {
+      ...spec,
+      argv: [process.execPath, '--version'],
+    });
+    await git(repo, ['switch', 'main']);
+    // Only the throwaway repository from fixture() is pruned.
+    await git(repo, ['reflog', 'expire', '--expire=now', '--all']);
+    await git(repo, ['-c', 'gc.cruftPacks=false', 'gc', '--prune=now']);
+    const attempt = svc.trials.enqueue(trial.id, key());
+    await svc.tick();
+    await until(() => !activeStates.includes(svc.store.get('attempts', attempt.id).state));
+    const finished = svc.store.get('attempts', attempt.id);
+    assert.equal(
+      finished.state,
+      'completed',
+      finished.reason ?? 'Trial did not finish successfully',
+    );
+    assert.equal(await git(finished.workspace!, ['rev-parse', 'HEAD']), trial.commit);
+  } finally {
+    await svc.shutdown();
+  }
+});
+
+test('a failed trial save leaves the repository refs unchanged', async () => {
+  const { svc, project, repo } = await fixture();
+  try {
+    const refs = await git(repo, ['show-ref']);
+    svc.store.db.exec(
+      "CREATE TEMP TRIGGER reject_trial BEFORE INSERT ON trials BEGIN SELECT RAISE(ABORT, 'injected failure'); END",
+    );
+    await assert.rejects(
+      svc.trials.create(project.id, { ...spec, argv: [process.execPath, '--version'] }),
+      /injected failure/,
+    );
+    assert.equal(await git(repo, ['show-ref']), refs);
+    assert.equal(svc.store.all('trials').length, 0);
+  } finally {
+    await svc.shutdown();
+  }
+});
+
 test('saving pins HEAD; confirmed attempts replay idempotently, retain failed metrics and retry in fresh worktrees', async () => {
   const { svc, project, repo, data } = await fixture();
   const { app, token } = await createApp(svc, { serveWeb: false });

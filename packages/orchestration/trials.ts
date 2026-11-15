@@ -51,13 +51,18 @@ export class TrialRunner {
     const project = this.store.get('projects', projectId);
     if (project.archived) throw new Error('Project archived');
     const commit = await git(project.repoPath, ['rev-parse', '--verify', 'HEAD^{commit}']);
-    return this.store.put('trials', {
-      ...spec,
-      id: randomUUID(),
-      projectId,
-      createdAt: now(),
-      commit,
-    });
+    const id = randomUUID();
+    const ref = `refs/ai-workspace/trials/${id}`;
+    // A SHA in SQLite alone cannot keep an unreferenced Git object alive.
+    await git(project.repoPath, ['update-ref', '--no-deref', ref, commit, '']);
+    try {
+      // The project can be archived or deleted while the Git process is running.
+      if (this.store.get('projects', projectId).archived) throw new Error('Project archived');
+      return this.store.put('trials', { ...spec, id, projectId, createdAt: now(), commit });
+    } catch (error) {
+      await git(project.repoPath, ['update-ref', '--no-deref', '-d', ref, commit]);
+      throw error;
+    }
   }
 
   enqueue(trialId: string, requestKey: string) {

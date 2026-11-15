@@ -113,6 +113,10 @@ test('explicit validation argv runs real commands; nonzero result fails the run'
     await settle(svc, [run.id]);
     assert.equal(svc.store.get('runs', run.id).state, 'failed');
     assert.match(svc.store.get('runs', run.id).error!, /code 7/);
+    const report = svc.store
+      .all('artifacts')
+      .find((a) => a.runId === run.id && a.kind === 'validation')!;
+    assert.equal(JSON.parse(report.content).exitCode, 7);
     assert.equal(svc.store.all('reservations').length, 0);
   } finally {
     await svc.shutdown();

@@ -4,16 +4,19 @@ import { ExperimentCompare } from '../../apps/web/src/ExperimentCompare.tsx';
 import { HistoryChart } from '../../apps/web/src/HistoryChart.tsx';
 import { fleet, runs, artifacts, history, exampleTime } from './data.ts';
 export function VisualReview() {
-  const [view, setView] = useState('fleet'),
+  const [view, setView] = useState('experiments'),
     [device, setDevice] = useState({ node: 'train', gpu: 'GPU-sample-a' });
   return (
     <main className="preview-shell">
       <header className="preview-header">
         <div>
-          <small>AI Agent Workspace · v0.7</small>
+          <small>AI Agent Workspace</small>
           <h1>{view === 'fleet' ? 'Compute resources' : 'Experiments'}</h1>
         </div>
-        <span className="preview-label">Offline design preview · sample data</span>
+        <span className="preview-label">Interactive preview · sample data</span>
+        <a className="secondary" href="https://github.com/vemodalen-x/ai_workspace">
+          View on GitHub
+        </a>
       </header>
       <nav aria-label="Preview view" className="view-switch">
         <button aria-pressed={view === 'fleet'} onClick={() => setView('fleet')}>
@@ -44,7 +47,7 @@ export function VisualReview() {
         </>
       ) : (
         <section className="surface fleet-node">
-          <h1 className="preview-group">Quantization ablation</h1>
+          <h2 className="preview-group">Quantization ablation</h2>
           <ExperimentCompare runs={runs} artifacts={artifacts} />
         </section>
       )}

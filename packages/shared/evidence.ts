@@ -1,14 +1,27 @@
 import type { Snapshot, Run } from './index.ts';
 type State = Pick<Snapshot, 'runs' | 'tasks' | 'projects' | 'artifacts' | 'approvals'>;
-export function latestRun(state: State, taskId: string): Run | undefined {
-  return state.runs
-    .filter((r) => r.taskId === taskId)
-    .sort(
-      (a, b) =>
-        b.createdAt.localeCompare(a.createdAt) || state.runs.indexOf(b) - state.runs.indexOf(a),
-    )[0];
+
+interface Validity {
+  freshness: 'current' | 'stale' | 'unknown';
+  reasons: string[];
 }
-export function evidence(state: State, run: Run) {
+
+function latestRunsByTask(runs: Run[]) {
+  const latest = new Map<string, Run>();
+  for (const run of runs) {
+    const previous = latest.get(run.taskId);
+    // When timestamps tie, the later row in the snapshot wins.
+    if (!previous || run.createdAt.localeCompare(previous.createdAt) >= 0)
+      latest.set(run.taskId, run);
+  }
+  return latest;
+}
+
+export function latestRun(state: State, taskId: string) {
+  return latestRunsByTask(state.runs).get(taskId);
+}
+
+function resultEvidence(state: State, run: Run) {
   const validation = state.artifacts.find(
     (a) => a.runId === run.id && a.kind === 'validation' && a.name === 'command-validation.json',
   );
@@ -34,49 +47,69 @@ export function evidence(state: State, run: Run) {
         a.sessionId === run.sessionId && a.source === run.resultCommit && a.state === 'approved',
     ),
   );
-  return { command, merged, commit: run.resultCommit ?? null, ...freshness(state, run) };
+  return { command, merged, commit: run.resultCommit ?? null };
 }
 
-/** Derived validity: historical outcomes are never rewritten when inputs change. */
-export function freshness(
-  state: State,
-  run: Run,
-  visiting = new Set<string>(),
-): {
-  freshness: 'current' | 'stale' | 'unknown';
-  reasons: string[];
-} {
-  if (!run.manifest)
-    return {
-      freshness: 'unknown',
-      reasons: ['Legacy run has no input manifest; rerun to establish provenance.'],
-    };
-  if (visiting.has(run.id))
-    return { freshness: 'stale', reasons: ['Dependency provenance contains a cycle.'] };
-  const seen = new Set(visiting).add(run.id);
-  const task = state.tasks.find((t) => t.id === run.taskId);
-  const project = state.projects.find((p) => p.id === run.projectId);
-  const reasons: string[] = [];
-  if (!task || (task.revision ?? 1) !== run.manifest.taskRevision)
-    reasons.push('Task definition changed since this run.');
-  if (!project || (project.contextRevision ?? 1) !== run.manifest.contextRevision)
-    reasons.push('Project working agreements changed since this run.');
-  for (const ref of run.manifest.dependencies) {
-    const current = latestRun(state, ref.taskId);
-    if (
-      !current ||
-      current.state !== 'completed' ||
-      current.id !== ref.runId ||
-      current.resultCommit !== ref.commit
-    ) {
-      reasons.push(
-        `Dependency ${state.tasks.find((t) => t.id === ref.taskId)?.title ?? ref.taskId} has a newer or incomplete execution.`,
-      );
-    } else {
-      const upstream = freshness(state, current, seen);
-      if (upstream.freshness !== 'current')
-        reasons.push(`Dependency ${ref.taskId} has ${upstream.freshness} input evidence.`);
+/** Share completed dependency checks only within the snapshot being inspected. */
+export function createEvidenceReader(state: State, ancestors?: ReadonlySet<string>) {
+  const latest = latestRunsByTask(state.runs);
+  const tasks = new Map(state.tasks.map((t) => [t.id, t]));
+  const projects = new Map(state.projects.map((p) => [p.id, p]));
+  const checked = new Map<Run, Validity>();
+  const visiting = new Set(ancestors);
+
+  function check(run: Run): Validity {
+    if (!run.manifest)
+      return {
+        freshness: 'unknown',
+        reasons: ['Legacy run has no input manifest; rerun to establish provenance.'],
+      };
+    if (visiting.has(run.id))
+      return { freshness: 'stale', reasons: ['Dependency provenance contains a cycle.'] };
+    const cached = checked.get(run);
+    if (cached) return cached;
+    visiting.add(run.id);
+    const reasons: string[] = [];
+    const task = tasks.get(run.taskId);
+    const project = projects.get(run.projectId);
+    if (!task || (task.revision ?? 1) !== run.manifest.taskRevision)
+      reasons.push('Task definition changed since this run.');
+    if (!project || (project.contextRevision ?? 1) !== run.manifest.contextRevision)
+      reasons.push('Project working agreements changed since this run.');
+    for (const ref of run.manifest.dependencies) {
+      const current = latest.get(ref.taskId);
+      if (
+        !current ||
+        current.state !== 'completed' ||
+        current.id !== ref.runId ||
+        current.resultCommit !== ref.commit
+      ) {
+        reasons.push(
+          `Dependency ${tasks.get(ref.taskId)?.title ?? ref.taskId} has a newer or incomplete execution.`,
+        );
+      } else {
+        const upstream = check(current);
+        if (upstream.freshness !== 'current')
+          reasons.push(`Dependency ${ref.taskId} has ${upstream.freshness} input evidence.`);
+      }
     }
+    visiting.delete(run.id);
+    const result: Validity = { freshness: reasons.length ? 'stale' : 'current', reasons };
+    checked.set(run, result);
+    return result;
   }
-  return { freshness: reasons.length ? 'stale' : 'current', reasons };
+
+  return {
+    latestRun: (taskId: string) => latest.get(taskId),
+    freshness: check,
+    evidence: (run: Run) => ({ ...resultEvidence(state, run), ...check(run) }),
+  };
+}
+
+export function freshness(state: State, run: Run, visiting?: Set<string>) {
+  return createEvidenceReader(state, visiting).freshness(run);
+}
+
+export function evidence(state: State, run: Run) {
+  return createEvidenceReader(state).evidence(run);
 }

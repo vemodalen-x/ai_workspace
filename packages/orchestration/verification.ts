@@ -1,7 +1,7 @@
 import { MetricOutput } from './metric-output.ts';
 import type { ExperimentMetric } from '../shared/experiment-results.ts';
 import { GitManager, git } from '../git-manager/index.ts';
-import { validateCommand } from '../agent-adapters/process.ts';
+import { validateCommand, ValidationExitError } from '../agent-adapters/process.ts';
 import type { Workspace } from '../shared/index.ts';
 
 /** Test the frozen candidate in its own worktree. Never reset/delete changed files. */
@@ -48,6 +48,7 @@ export async function verifyCandidate(input: {
       input.gpu,
       output && ((chunk) => output.push(chunk)),
     );
+    report.exitCode = 0;
     if (
       (await git(work.path, ['rev-parse', 'HEAD'])) !== input.commit ||
       (await git(work.path, ['status', '--porcelain', '--untracked-files=no']))
@@ -56,12 +57,12 @@ export async function verifyCandidate(input: {
         'Validation modified tracked code or HEAD; evidence is not valid for the candidate commit',
       );
     report.passed = true;
-    report.exitCode = 0;
     if (output) {
       report.metrics = output.finish();
       report.ignoredMetricLines = output.ignored;
     }
   } catch (e) {
+    if (e instanceof ValidationExitError) report.exitCode = e.exitCode;
     report.error = (e as Error).message;
   } finally {
     try {

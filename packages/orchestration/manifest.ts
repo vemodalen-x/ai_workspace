@@ -1,16 +1,17 @@
 import os from 'node:os';
 import { taskInput, type RunManifest, type Task, type Snapshot } from '../shared/index.ts';
-import { latestRun, freshness } from '../shared/evidence.ts';
+import { createEvidenceReader } from '../shared/evidence.ts';
 
 export function captureManifest(state: Snapshot, task: Task): RunManifest {
   const project = state.projects.find((p) => p.id === task.projectId)!;
+  const history = createEvidenceReader(state);
   const dependencies = task.dependencies.map((taskId) => {
-    const run = latestRun(state, taskId);
+    const run = history.latestRun(taskId);
     if (
       !run ||
       run.state !== 'completed' ||
       !run.resultCommit ||
-      freshness(state, run).freshness !== 'current'
+      history.freshness(run).freshness !== 'current'
     )
       throw new Error(
         'Dependency evidence is stale or unavailable; rerun dependencies before execution',

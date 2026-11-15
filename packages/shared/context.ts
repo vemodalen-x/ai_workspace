@@ -1,8 +1,9 @@
 import type { Snapshot, Task, Run } from './index.ts';
-import { latestRun, evidence } from './evidence.ts';
+import { createEvidenceReader } from './evidence.ts';
 type State = Omit<Snapshot, 'briefing'>;
 export function executionBrief(state: State, task: Task, run: Run): string {
   const project = state.projects.find((p) => p.id === task.projectId)!;
+  const history = createEvidenceReader(state);
   const projectContext = run.manifest?.projectContext ?? project.context;
   task = { ...task, ...(run.manifest?.taskSpec ?? {}) };
   const previous = state.runs
@@ -11,12 +12,12 @@ export function executionBrief(state: State, task: Task, run: Run): string {
   const dependencies = task.dependencies.map((id) => {
     const d = state.tasks.find((t) => t.id === id);
     const pinned = run.manifest?.dependencies.find((d) => d.taskId === id);
-    const r = pinned ? state.runs.find((r) => r.id === pinned.runId) : latestRun(state, id);
+    const r = pinned ? state.runs.find((r) => r.id === pinned.runId) : history.latestRun(id);
     return {
       task: d?.title,
       state: d?.state,
       runId: r?.id,
-      evidence: r ? evidence(state, r) : null,
+      evidence: r ? history.evidence(r) : null,
     };
   });
   const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}\n[truncated]` : s);
@@ -29,7 +30,7 @@ export function executionBrief(state: State, task: Task, run: Run): string {
     `Experiment specification (user-declared; verify data versions and apply the seed explicitly): ${JSON.stringify(task.experiment ?? null)}`,
     `Configured post-run validation argv: ${clip(JSON.stringify(task.validationCommand ?? []), 8000)}`,
     `Dependency evidence (code is only combined when an integration workspace is configured):\n${clip(JSON.stringify(dependencies), 12000)}`,
-    `Previous execution:\n${previous ? JSON.stringify({ runId: previous.id, sessionId: previous.sessionId, state: previous.state, error: previous.error?.slice(0, 2000), evidence: evidence(state, previous) }) : '(none)'}`,
+    `Previous execution:\n${previous ? JSON.stringify({ runId: previous.id, sessionId: previous.sessionId, state: previous.state, error: previous.error?.slice(0, 2000), evidence: history.evidence(previous) }) : '(none)'}`,
     `Current instruction:\n${run.prompt}`,
   ].join('\n\n');
 }

@@ -1,8 +1,52 @@
 # AI Agent Workspace
 
-本地优先的 AI 开发与实验工作台，使用 React、TypeScript、Fastify、SQLite 和 Git worktree。你可以调度 Coding Agent、审批代码集成，也可以在固定提交上直接运行自己的实验脚本。
+Run coding agents in separate Git worktrees, review the commits they produce, and replay local experiment commands against a saved commit. The workspace keeps run history, validation reports and step metrics in SQLite.
 
-可运行闭环：导入 Git 项目 → 建立任务树与独立 DAG → 独立 worktree 并行执行 → 持久化事件 / 日志 / Diff → 显式命令验证 → 合并预览 → 用户批准集成。
+在本机调度 Coding Agent，审查它们的改动，也可以绕过 Agent 直接运行自己的实验脚本。每次尝试记录代码提交、命令、配置和指标，方便回看同一个实验是怎么跑出来的。
+
+**Try the sample in your browser.** Switch from `val_mIoU` to `throughput` in the quantization example. The INT8 run and the FP16 baseline share a dataset version. The larger-batch run uses a different version, so you can see exactly why its delta is withheld. [Open the interactive demo](https://vemodalen-x.github.io/ai_workspace/)
+
+[![Interactive sample comparing INT8 and FP16 runs, including a mismatched dataset version](docs/images/experiment-comparison.png)](https://vemodalen-x.github.io/ai_workspace/)
+
+## 快速启动
+
+**Local quick start** requires Node.js 24+, npm and Git 2.38+. Windows 可使用 Git for Windows，SSH 节点需要 OpenSSH 客户端。各平台与 Provider 的验证范围见[测试记录](docs/verification.md)。
+
+```bash
+git clone https://github.com/vemodalen-x/ai_workspace.git
+cd ai_workspace
+npm ci
+npm run dev
+```
+
+打开 **http://127.0.0.1:5173**。一条开发命令启动 Web 和 Backend；Backend 在 `127.0.0.1:4310`。项目路径是在运行 Backend 的电脑上的路径。
+
+不使用任何付费凭证，也可以运行完整验收：
+
+```bash
+# 首次启动服务前执行，创建独立示例仓库；不会修改你的项目
+npm run seed
+npm run dev
+```
+
+进入 Projects → CV-Agent-Project → Queue draft tasks。A、B 并行写入不同的 JSON 产物，C 将其提交合入自己的集成 worktree 并校验。选择 C → Review changes → Preview merge → Review approval → Approve and merge。所有任务明确标记 **Mock Agent**；Mock 不伪装成 Codex / Claude，不制造 Token 或费用数字。
+
+自动化执行同一个 fixture（服务停止时）：
+
+```bash
+npm run seed -- --run
+```
+
+种子脚本是幂等的，已存在示例项目时不会重复排队。自动化验收会在临时目录创建新仓库，使用 `npm test` 可重复运行。
+
+生产构建和本地服务：
+
+```bash
+npm run build
+npm start
+```
+
+生产模式打开 **http://127.0.0.1:4310**。静态 Web 由同一个 Fastify 进程提供。不要通过公网或 LAN 代理暴露此服务。
 
 ## v0.8 本地命令实验
 
@@ -60,44 +104,6 @@ Compute fleet 按节点和 GPU UUID 展示真实可获取的利用率、显存�
 - **七天回顾**：真实执行次数与验证覆盖情况，不估造效率或节省时长。
 
 已有 v0.1 数据可直接读取，新增字段向后兼容。升级前停止服务并备份 `.workspace`；旧 Run 无结果提交时不会自动推断已合并。详细设计与资料来源见 [productivity-upgrade.md](docs/productivity-upgrade.md)。
-
-## 快速启动
-
-要求：**Node.js 24+、npm、Git 2.38+**。Windows 安装 Git for Windows；SSH 节点需要 OpenSSH 客户端。v0.8 已在 Windows 上验证本地命令实验、Git worktree、Mock Agent 和 Chrome 交互。真实 Provider 和远程节点的验证范围见[测试记录](docs/verification.md)。
-
-```bash
-npm ci
-npm run dev
-```
-
-打开 **http://127.0.0.1:5173**。一条开发命令启动 Web 和 Backend；Backend 在 `127.0.0.1:4310`。项目路径是在运行 Backend 的电脑上的路径。
-
-不使用任何付费凭证，也可以运行完整验收：
-
-```bash
-# 首次启动服务前执行，创建独立示例仓库；不会修改你的项目
-npm run seed
-npm run dev
-```
-
-进入 Projects → CV-Agent-Project → Queue draft tasks。A、B 并行写入不同的 JSON 产物，C 将其提交合入自己的集成 worktree 并校验。选择 C → Review changes → Preview merge → Review approval → Approve and merge。所有任务明确标记 **Mock Agent**；Mock 不伪装成 Codex / Claude，不制造 Token 或费用数字。
-
-自动化执行同一个 fixture（服务停止时）：
-
-```bash
-npm run seed -- --run
-```
-
-种子脚本是幂等的，已存在示例项目时不会重复排队。自动化验收会在临时目录创建新仓库，使用 `npm test` 可重复运行。
-
-生产构建和本地服务：
-
-```bash
-npm run build
-npm start
-```
-
-生产模式打开 **http://127.0.0.1:4310**。静态 Web 由同一个 Fastify 进程提供。不要通过公网或 LAN 代理暴露此服务。
 
 ## 配置真实 Agent
 
@@ -216,7 +222,7 @@ npm run test:providers
 Remove-Item Env:RUN_REAL_PROVIDER_TESTS
 ```
 
-[docs/verification.md](docs/verification.md) 记录本次实际执行结果。CI 提供 Linux/Windows core checks 与 Linux Playwright job；提供配置不代表远程 CI 已运行。
+历次验证的环境与结果见[测试记录](docs/verification.md)。Linux、Windows 和浏览器的每次运行都可以在 [GitHub Actions](https://github.com/vemodalen-x/ai_workspace/actions/workflows/ci.yml) 查看。
 
 ## 数据与恢复
 
@@ -249,5 +255,3 @@ docs/                    Architecture, data model, API, remote setup, limits
 - [Remote Worker](docs/remote-worker.md)
 - [Known limitations](docs/known-limitations.md)
 - [Verification](docs/verification.md)
-
-GitHub 连接已做只读检查；本次没有指定可写目标仓库，没有将源代码放进任何无关已有仓库。源码可用普通 Git 管理。准备好目标仓库后运行常规 `git remote add origin <your-repository-url>` 和 `git push -u origin main`；不要把 `.workspace/` 或凭证推送上去。

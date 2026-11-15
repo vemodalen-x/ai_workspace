@@ -234,12 +234,12 @@ svg {
   display: grid;
   place-items: center;
 }
-nav {
+.sidebar nav {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
-nav > button,
+.sidebar nav > button,
 .sidebar-bottom > button {
   justify-content: flex-start;
   padding: 11px 12px;
@@ -248,16 +248,16 @@ nav > button,
   font-size: 12px;
   gap: 11px;
 }
-nav > button:hover,
+.sidebar nav > button:hover,
 .sidebar-bottom > button:hover {
   background: #202633;
 }
-nav > button.active,
+.sidebar nav > button.active,
 .sidebar-bottom > button.active {
   background: #26332f;
   color: #b5e5d7;
 }
-nav > button.active > svg {
+.sidebar nav > button.active > svg {
   color: var(--accent);
 }
 .nav-count {
@@ -2280,14 +2280,14 @@ dd {
   .local-status {
     display: none;
   }
-  nav > button,
+  .sidebar nav > button,
   .sidebar-bottom > button {
     font-size: 0;
     gap: 0;
     justify-content: center;
     padding: 13px 8px;
   }
-  nav .nav-count {
+  .sidebar nav .nav-count {
     display: none;
   }
   .sidebar-bottom > button {
