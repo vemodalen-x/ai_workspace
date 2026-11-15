@@ -103,4 +103,6 @@ Authenticated endpoints use the existing loopback API. A Trial is an immutable c
 
 Each command receives `WORKSPACE_TRIAL_ID`, `WORKSPACE_ATTEMPT_ID` and `WORKSPACE_EXPERIMENT` (JSON); training code applies its seed and parameters. GPU allocation sets `CUDA_VISIBLE_DEVICES` to the reserved device, or to an empty value for CPU. Commands run under the controller user's OS permissions. A clean worktree contains the files tracked at the frozen commit; prepare libraries in the local interpreter environment.
 
+From v0.8.1, saving a trial creates a local Git ref at `refs/ai-workspace/trials/<trial-id>`. This keeps the input commit reachable through branch rewrites and garbage collection before the first attempt. Include these refs when backing up the source repository. Earlier trials still use the SHA recorded in SQLite and require that object to exist in Git.
+
 Output retains the first 256 KiB of combined stdout/stderr and up to 5,000 distinct samples across 32 metric/unit series per attempt. Failed or cancelled attempts retain observed samples. A running attempt interrupted by a controller crash requires reconciliation. Worktrees and generated files stay on disk for inspection.

@@ -114,6 +114,12 @@ export async function jsonProcess(config: {
     lines.close();
   }
 }
+export class ValidationExitError extends Error {
+  constructor(readonly exitCode: number) {
+    super(`Validation command exited with code ${exitCode}`);
+  }
+}
+
 export async function validateCommand(
   argv: string[],
   cwd: string,
@@ -130,7 +136,7 @@ export async function validateCommand(
       emit(chunk.toString().slice(0, 32000));
     },
   });
-  if (code !== 0) throw new Error(`Validation command exited with code ${code}`);
+  if (code !== 0) throw new ValidationExitError(code);
 }
 
 export async function runLocalCommand(

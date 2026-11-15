@@ -1,5 +1,5 @@
 import type { Snapshot, Task, Run } from './index.ts';
-import { latestRun, evidence } from './evidence.ts';
+import { createEvidenceReader } from './evidence.ts';
 export { latestRun, evidence } from './evidence.ts';
 export { executionBrief } from './context.ts';
 
@@ -28,6 +28,7 @@ export interface Briefing {
   };
 }
 export function buildBriefing(state: State, clock = new Date()): Briefing {
+  const history = createEvidenceReader(state);
   const tasks = state.tasks.filter((t) =>
     state.projects.some((p) => p.id === t.projectId && !p.archived),
   );
@@ -51,7 +52,7 @@ export function buildBriefing(state: State, clock = new Date()): Briefing {
       action,
     });
   for (const t of tasks) {
-    const run = latestRun(state, t.id);
+    const run = history.latestRun(t.id);
     if (run?.state === 'orphaned') {
       add(
         t,
@@ -63,12 +64,10 @@ export function buildBriefing(state: State, clock = new Date()): Briefing {
       continue;
     }
     if (run && ['starting', 'running'].includes(run.state)) continue;
-    if (run?.state === 'completed') {
-      const result = evidence(state, run);
-      if (result.freshness === 'stale') {
-        add(t, 'stale', result.reasons.join(' '), 'Review outdated result', run);
-        continue;
-      }
+    const result = run?.state === 'completed' ? history.evidence(run) : undefined;
+    if (result?.freshness === 'stale') {
+      add(t, 'stale', result.reasons.join(' '), 'Review outdated result', run);
+      continue;
     }
     const pending = state.approvals.find(
       (a) =>
@@ -95,13 +94,12 @@ export function buildBriefing(state: State, clock = new Date()): Briefing {
       );
       continue;
     }
-    if (run?.state === 'completed') {
-      const e = evidence(state, run);
-      if (!e.merged)
+    if (result) {
+      if (!result.merged)
         add(
           t,
           'review',
-          e.command === 'passed'
+          result.command === 'passed'
             ? 'Configured command passed. Acceptance criteria and merge still require review.'
             : 'Execution ended, but no passing validation command is recorded for this run.',
           'Review result',
@@ -189,7 +187,7 @@ export function buildBriefing(state: State, clock = new Date()): Briefing {
       tasks.some((t) => t.id === r.taskId),
   );
   const done = recent.filter((r) => r.state === 'completed');
-  const passed = done.filter((r) => evidence(state, r).command === 'passed').length;
+  const passed = done.filter((r) => history.evidence(r).command === 'passed').length;
   return {
     generatedAt: clock.toISOString(),
     items,

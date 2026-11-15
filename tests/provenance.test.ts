@@ -7,6 +7,53 @@ import { Store } from '../packages/orchestration/store.ts';
 import { assertTransition } from '../packages/orchestration/lifecycle.ts';
 import { freshness, evidence } from '../packages/shared/evidence.ts';
 import { fixture, key, settle } from './helpers.ts';
+import { captureManifest } from '../packages/orchestration/manifest.ts';
+import type { RunManifest } from '../packages/shared/index.ts';
+
+test('freshness visits each shared upstream run once in a 30-run DAG', async () => {
+  const { svc, project } = await fixture();
+  try {
+    const task = svc.saveTask(project.id, { title: 'Fan-in' });
+    const run = svc.enqueue(task.id, { requestKey: key() });
+    const state = svc.snapshot();
+    const manifest = captureManifest(state, task);
+    state.tasks = [];
+    state.runs = [];
+    let reads = 0;
+    function add(id: string, parents: RunManifest['dependencies']) {
+      state.tasks.push({ ...task, id, dependencies: parents.map((ref) => ref.taskId) });
+      state.runs.push({
+        ...run,
+        id,
+        taskId: id,
+        state: 'completed',
+        resultCommit: id,
+        manifest: {
+          ...manifest,
+          get dependencies() {
+            reads++;
+            return parents;
+          },
+        },
+      });
+      return { taskId: id, runId: id, commit: id };
+    }
+    const rootParents: RunManifest['dependencies'] = [];
+    let layer = [add('root', rootParents)];
+    for (let i = 1; i <= 14; i++) layer = [add('a' + i, layer), add('b' + i, layer)];
+    const sink = add('sink', layer);
+    const last = state.runs.at(-1)!;
+    assert.equal(freshness(state, last).freshness, 'current');
+    assert.equal(reads, state.runs.length);
+    state.tasks[0].revision = 2;
+    assert.equal(freshness(state, last).freshness, 'stale');
+    state.tasks[0].revision = 1;
+    rootParents.push(sink);
+    assert.equal(freshness(state, last).freshness, 'stale');
+  } finally {
+    await svc.shutdown();
+  }
+});
 
 test('transaction rolls back rows and events, publishes only committed events and isolates subscribers', () => {
   const store = new Store(':memory:');
@@ -185,6 +232,7 @@ test('verification tests frozen candidate in separate worktree and refuses track
       svc.store.all('artifacts').find((a) => a.runId === r.id && a.kind === 'validation')!.content,
     );
     assert.equal(report.passed, false);
+    assert.equal(report.exitCode, 0);
     assert.equal(report.retained, true);
     const w = svc.store.get('workspaces', r.sessionId);
     assert.notEqual(report.workspace, w.path);
