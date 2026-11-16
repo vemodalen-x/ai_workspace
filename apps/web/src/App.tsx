@@ -1694,6 +1694,7 @@ export function App() {
                     Provider
                     <select
                       name="provider"
+                        aria-label="Provider"
                       defaultValue={modal.task?.provider ?? preferredProvider(data.providers)}
                     >
                       <option value="codex">OpenAI Codex</option>

@@ -69,6 +69,7 @@ await writeFile(
     'const mse = values.reduce((sum, value) => sum + (value - config.parameters.prediction) ** 2, 0) / values.length;',
     "console.log('WORKSPACE_METRIC ' + JSON.stringify({name:'mse', unit:'', step:1, value:mse}));",
     "console.log('Evaluated ' + values.length + ' observations with seed ' + config.seed);",
+    "console.log('Runtime ' + process.execPath);",
   ].join('\n'),
 );
 await git('add', '.');
@@ -124,6 +125,10 @@ try {
   const output = await api<AttemptOutput>('attempts/' + attempt.id + '/output');
   assert.deepEqual(output.metrics, [{ name: 'mse', unit: '', value: 10, step: 1 }]);
   assert.match(output.log, /4 observations with seed 42/);
+  assert.ok(
+    output.log.toLowerCase().includes(('Runtime ' + runtime).toLowerCase()),
+    'The trial must use the installed Node runtime',
+  );
 
   const providers = await api<Snapshot['providers']>('providers/refresh', {});
   assert.ok(providers.find((p) => p.id === 'codex')?.installed, 'Bundled Codex CLI must start');
