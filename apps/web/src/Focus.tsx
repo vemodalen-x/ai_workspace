@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Plus, Target, ShieldCheck } from 'lucide-react';
-import type { Snapshot, Project } from '../../../packages/shared/index.ts';
+import type { Snapshot, Project, Provider } from '../../../packages/shared/index.ts';
 import type { AttentionItem } from '../../../packages/shared/assistant.ts';
 import { api } from './api.ts';
 import { usePreference } from './preferences.ts';
@@ -11,12 +11,18 @@ export function Focus({
   open,
   refresh,
   notify,
+  provider,
+  importProject,
+  openExperiments,
 }: {
   data: Snapshot;
   search: string;
   open: (item: AttentionItem) => void;
   refresh: () => Promise<unknown>;
   notify: (text: string, error?: boolean) => void;
+  provider: Provider;
+  importProject: () => void;
+  openExperiments: (projectId: string) => void;
 }) {
   const [projectId, setProjectId] = usePreference('aw.focus.project', '');
   const [filter, setFilter] = usePreference('aw.focus.filter', 'all');
@@ -37,7 +43,7 @@ export function Focus({
     if (!title) return;
     setBusy(true);
     try {
-      await api(`/projects/${project.id}/tasks`, 'POST', { title });
+      await api(`/projects/${project.id}/tasks`, 'POST', { title, provider });
       form.reset();
       await refresh();
       notify('Captured as a draft. Clarify it before execution.');
@@ -60,40 +66,59 @@ export function Focus({
         <span className="local-pill">{b.running} running</span>
       </div>
       <section className="surface focus-capture">
-        <form onSubmit={(e) => void capture(e)}>
-          <label>
-            Project
-            <select
-              value={project?.id ?? ''}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={!projects.length}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="capture-title">
-            Quick capture
-            <input
-              name="title"
-              placeholder="An outcome, question, or issue to work on…"
-              maxLength={180}
-              required
-              disabled={!project}
-            />
-          </label>
-          <button className="primary" disabled={!project || busy}>
-            <Plus size={15} /> Capture draft
-          </button>
-        </form>
-        <small>
-          {project
-            ? 'Capture creates a Mock draft only. It never starts an agent or consumes provider usage.'
-            : 'Import a Git project from Overview to capture your first task.'}
-        </small>
+        {!project && (
+          <div className="section-heading">
+            <div>
+              <h2>Connect your first repository</h2>
+              <p>
+                Choose a local Git repository with a commit to run scripts or assign coding tasks.
+              </p>
+            </div>
+            <button className="primary" onClick={importProject}>
+              Import project
+            </button>
+          </div>
+        )}
+        {project && (
+          <>
+            <form onSubmit={(e) => void capture(e)}>
+              <label>
+                Project
+                <select
+                  value={project?.id ?? ''}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  disabled={!projects.length}
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="capture-title">
+                Quick capture
+                <input
+                  name="title"
+                  placeholder="An outcome, question, or issue to work on…"
+                  maxLength={180}
+                  required
+                  disabled={!project}
+                />
+              </label>
+              <button className="primary" disabled={!project || busy}>
+                <Plus size={15} /> Capture draft
+              </button>
+            </form>
+            <small>
+              Drafts wait for your review before execution. To run your own script,{' '}
+              <button className="text-button" onClick={() => openExperiments(project.id)}>
+                open command trials
+              </button>
+              .
+            </small>
+          </>
+        )}
       </section>
       <div className="focus-review" aria-label="Seven day review">
         <div>

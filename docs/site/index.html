@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI Agent Workspace · Install for Windows and Linux</title>
+    <meta
+      name="description"
+      content="Run coding agents in Git worktrees, execute local experiments, and keep a reproducible history on your computer."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23132626'/%3E%3Cpath d='m8 16 12-6 12 6-12 6z M8 22l12 6 12-6' fill='none' stroke='%2383dbc0' stroke-width='2.5'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        font:
+          16px/1.6 Inter,
+          system-ui,
+          sans-serif;
+        color: #e5efec;
+        background: #0d1719;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 980px;
+        padding: 0 24px;
+        margin: auto;
+      }
+      header,
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: center;
+        border-bottom: 1px solid #344448;
+        padding: 22px 0;
+      }
+      a {
+        color: #9de6cc;
+        text-underline-offset: 4px;
+      }
+      header strong {
+        font-weight: 650;
+      }
+      main {
+        padding: 54px 0;
+      }
+      h1 {
+        font-size: clamp(2.5rem, 6vw, 4.3rem);
+        line-height: 1.06;
+        letter-spacing: -0.055em;
+        max-width: 800px;
+        margin: 0 0 22px;
+      }
+      p {
+        max-width: 680px;
+        color: #c1d0cc;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 38px 0 10px;
+      }
+      .downloads {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 18px 0;
+      }
+      .downloads a {
+        border: 1px solid #519382;
+        padding: 10px 15px;
+        border-radius: 7px;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .downloads a:first-child {
+        background: #a3eed1;
+        color: #102320;
+      }
+      .downloads a:hover {
+        outline: 2px solid #a3eed1;
+      }
+      figure {
+        margin: 38px 0 8px;
+      }
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid #344448;
+        border-radius: 10px;
+      }
+      figcaption,
+      footer {
+        font-size: 0.9rem;
+        color: #b6c7c2;
+      }
+      figcaption {
+        margin-top: 10px;
+      }
+      footer {
+        border-top: 1px solid #344448;
+        border-bottom: 0;
+        flex-wrap: wrap;
+      }
+      a:focus-visible {
+        outline: 3px solid white;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>AI Agent Workspace</strong
+      ><a href="https://github.com/vemodalen-x/ai_workspace">GitHub repository</a>
+    </header>
+    <main>
+      <h1>Run agents and experiments in your own Git repositories.</h1>
+      <p>
+        Give a coding task its own worktree, inspect the diff, and decide what to merge. For
+        experiments, run your script against a fixed commit and export its parameters, metrics and
+        log together.
+      </p>
+      <h2>Install on your computer</h2>
+      <div class="downloads">
+        <a
+          href="https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-windows-x64-setup.exe"
+          >Windows x64 · .exe</a
+        ><a
+          href="https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-linux-x64.deb"
+          >Debian / Ubuntu · .deb</a
+        ><a
+          href="https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-linux-x64.tar.gz"
+          >Linux x64 · .tar.gz</a
+        >
+      </div>
+      <p>
+        Requires Git 2.38 or newer. Node.js and the Codex CLI are included. Local command trials
+        work without a model account.
+        <a href="https://github.com/vemodalen-x/ai_workspace/blob/main/docs/local-install.md"
+          >Installation and first run</a
+        >
+      </p>
+      <figure>
+        <a href="preview/"
+          ><img
+            src="experiment-comparison.png"
+            alt="The Experiments view comparing quantization runs by metric and dataset version"
+        /></a>
+        <figcaption>
+          Compare validation scores at the same dataset version.
+          <a href="preview/">Explore the interactive sample</a>
+        </figcaption>
+      </figure>
+    </main>
+    <footer>
+      <a href="https://github.com/vemodalen-x/ai_workspace/releases/latest"
+        >Release notes and checksums</a
+      ><a href="https://github.com/vemodalen-x/ai_workspace/discussions">GitHub Discussions</a>
+    </footer>
+  </body>
+</html>

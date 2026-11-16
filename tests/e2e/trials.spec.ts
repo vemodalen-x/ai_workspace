@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { git } from '../../packages/git-manager/index.ts';
@@ -49,6 +49,14 @@ test('create, review, execute and compare command trial attempts', async ({ page
   await expect(panel.getByRole('img', { name: 'loss by step' })).toBeVisible();
   await panel.getByText('Command output', { exact: true }).click();
   await expect(panel).toContainText('Finished measurement');
+  const download = page.waitForEvent('download');
+  await panel.getByRole('button', { name: 'Export attempt JSON' }).click();
+  const report = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+  expect(report.trial.commit).toBe(sha);
+  expect(report.trial.argv).toEqual(['node', 'measure.cjs']);
+  expect(report.attempt.exitCode).toBe(0);
+  expect(report.output.metrics.at(-1).value).toBe(0.5);
+  expect(report.output.log).toContain('Finished measurement');
   await panel.getByRole('button', { name: 'Retry trial' }).click();
   await dialog.getByRole('button', { name: 'Queue attempt' }).click();
   await expect(panel.getByLabel('Execution attempt').locator('option')).toHaveCount(2);
