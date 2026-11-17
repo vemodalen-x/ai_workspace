@@ -1,3 +1,7 @@
+import {
+  ExternalSessions,
+  externalSessionInput,
+} from '../../../packages/orchestration/external-sessions.ts';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import staticFiles from '@fastify/static';
@@ -69,6 +73,22 @@ export async function createApp(
   });
   app.get('/api/bootstrap', async () => ({ token, version: '0.8.0' }));
   app.get('/api/snapshot', async () => service.snapshot());
+  const external = new ExternalSessions(service.store);
+  app.get<{ Params: { id: string } }>('/api/projects/:id/external-sessions', async (req) =>
+    external.list(req.params.id),
+  );
+  app.post<{ Params: { id: string } }>('/api/projects/:id/external-sessions', async (req) =>
+    service.serial(() => external.attach(req.params.id, externalSessionInput.parse(req.body))),
+  );
+  app.get<{ Params: { id: string } }>('/api/external-sessions/:id/output', async (req) =>
+    external.output(req.params.id),
+  );
+  app.delete<{ Params: { id: string } }>('/api/external-sessions/:id', async (req) =>
+    service.serial(async () => {
+      external.detach(req.params.id);
+      return { ok: true };
+    }),
+  );
   app.get('/api/assistant', async () => service.snapshot().briefing);
   app.get('/api/events', async (req) => {
     const query = z

@@ -203,7 +203,8 @@ export class Orchestrator {
     if (
       this.store.all('tasks').some((t) => t.projectId === id) ||
       this.store.all('sessions').some((s) => s.projectId === id) ||
-      this.store.all('trials').some((t) => t.projectId === id)
+      this.store.all('trials').some((t) => t.projectId === id) ||
+      this.store.all('externalSessions').some((s) => s.projectId === id)
     )
       throw new Error('Project has history; archive it to preserve records');
     this.store.tx(() => {

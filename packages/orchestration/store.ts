@@ -19,7 +19,10 @@ import type {
 import { now } from '../shared/index.ts';
 import type { Trial, TrialAttempt } from '../shared/trials.ts';
 
+import type { ExternalSession } from '../shared/external-sessions.ts';
+
 export interface Tables {
+  externalSessions: ExternalSession;
   trials: Trial;
   attempts: TrialAttempt;
   projects: Project;
@@ -33,6 +36,7 @@ export interface Tables {
   artifacts: Artifact;
 }
 const tables: (keyof Tables)[] = [
+  'externalSessions',
   'trials',
   'attempts',
   'projects',
