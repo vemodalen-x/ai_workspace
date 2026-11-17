@@ -48,6 +48,12 @@ npm start
 
 生产模式打开 **http://127.0.0.1:4310**。静态 Web 由同一个 Fastify 进程提供。不要通过公网或 LAN 代理暴露此服务。
 
+## 挂载已有 Claude Code 会话
+
+在项目页面的 **Attached Claude sessions** 中输入原生 Claude session UUID，点击 **Attach session**。可以挂载从其他工作目录启动的本机会话；页面明确展示原目录，历史和新消息每四秒刷新。来源为 `$CLAUDE_CONFIG_DIR/projects`，默认 `~/.claude/projects`。例如 `ac19a74b-8674-4eb6-903a-34a2ba5c3b0c`。
+
+这是只读挂载，执行仍由原终端负责，不会启动 Agent、消耗模型额度或生成工作台 Run/合并证据。**Detach session** 仅移除关联，不删除源文件。只显示最近有界历史；文件不可用时保留关联并显示错误。当前支持本机 Claude Code，不支持 Codex 或远端历史导入。详见 [API 与读取边界](docs/api-contract.md#attached-external-claude-sessions)。
+
 ## v0.8 本地命令实验
 
 1. 导入包含实验脚本的 Git 仓库，在 **Experiments → New trial** 选择项目，填写命令参数数组（例如 `["python","train.py"]`）、实验组、数据版本、seed 和资源预算。

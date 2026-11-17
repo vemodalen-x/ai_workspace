@@ -106,3 +106,18 @@ Each command receives `WORKSPACE_TRIAL_ID`, `WORKSPACE_ATTEMPT_ID` and `WORKSPAC
 From v0.8.1, saving a trial creates a local Git ref at `refs/ai-workspace/trials/<trial-id>`. This keeps the input commit reachable through branch rewrites and garbage collection before the first attempt. Include these refs when backing up the source repository. Earlier trials still use the SHA recorded in SQLite and require that object to exist in Git.
 
 Output retains the first 256 KiB of combined stdout/stderr and up to 5,000 distinct samples across 32 metric/unit series per attempt. Failed or cancelled attempts retain observed samples. A running attempt interrupted by a controller crash requires reconciliation. Worktrees and generated files stay on disk for inspection.
+
+## Attached external Claude sessions
+
+These endpoints link local Claude Code history to a project **read-only**. They never resume a provider, create a managed Run/worktree, or grant merge approval. Execution stays in the original terminal. Source file activity is not a process-running signal.
+
+| Method | Path                              | Behavior                                                                                                                  |
+| ------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/projects/:id/external-sessions` | List persistent links for the project.                                                                                    |
+| POST   | `/projects/:id/external-sessions` | `{ "providerSessionId": "<UUID>" }`; discover local history and link it idempotently. Archived projects reject new links. |
+| GET    | `/external-sessions/:id/output`   | Latest bounded transcript, source cwd, file size/mtime, truncation and skipped-record indicators.                         |
+| DELETE | `/external-sessions/:id`          | Remove link only; source history and running process are untouched.                                                       |
+
+Discovery uses direct `<UUID>.jsonl` files in project directories under `$CLAUDE_CONFIG_DIR/projects` (default `~/.claude/projects`). Arbitrary paths and source symlinks are rejected. A missing or ambiguous source returns an error while preserving the link. Conversation content is served only through the authenticated local API, not copied into events or the database. The reader limits each request to the last 1 MiB, 200 messages and 32,000 characters per message; unfinished last lines are deferred. Only user/assistant text and tool names are shown; thinking and tool input/output payloads are omitted. Existing credential redaction applies, but conversation text may still contain private information.
+
+Project pages poll the list and selected transcript every four seconds. Links can refer to sessions from a different working directory; the original cwd is displayed explicitly. Linked sessions have no managed execution status, resume, cancel, diff or merge controls.

@@ -1,3 +1,4 @@
+import { ExternalSessions } from './ExternalSessions.tsx';
 import { TaskTree } from './TaskTree.tsx';
 import { AppShell } from './AppShell.tsx';
 import { Empty, MetricBar, Field, ModalFrame, Timeline } from './UiPrimitives.tsx';
@@ -873,6 +874,13 @@ export function App() {
                 Explicit integration approval
               </span>
             </div>
+            {project && (
+              <ExternalSessions
+                key={project.id}
+                projectId={project.id}
+                archived={project.archived}
+              />
+            )}
             <section className="surface task-surface">
               <div className="task-toolbar">
                 <div className="segmented">
