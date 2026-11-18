@@ -9,6 +9,11 @@ export const sshNodeInput = z.object({
     .string()
     .regex(/^\/[a-zA-Z0-9_./-]+$/)
     .refine((s) => !s.split('/').includes('..')),
+  nodePath: z
+    .string()
+    .regex(/^\/[a-zA-Z0-9_./-]+$/)
+    .refine((s) => !s.split('/').includes('..'))
+    .optional(),
   cpu: z.number().int().positive().max(1024),
   ramMb: z.number().int().positive().max(1048576),
 });
@@ -50,7 +55,7 @@ export async function remoteRequest(
       '-o',
       'ServerAliveCountMax=2',
       node.sshAlias,
-      `node '${node.workerPath}'`,
+      `${node.nodePath ?? 'node'} '${node.workerPath}'`,
     ],
     input: JSON.stringify(request) + '\n',
     keepStdinOpen: true,

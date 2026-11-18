@@ -48,6 +48,8 @@ npm start
 
 生产模式打开 **http://127.0.0.1:4310**。静态 Web 由同一个 Fastify 进程提供。不要通过公网或 LAN 代理暴露此服务。
 
+Linux 开机启动、退出登录后常驻、进程崩溃与健康检查恢复见 [本机常驻服务](docs/local-service.md)。
+
 ## 挂载已有 Claude Code 会话
 
 在项目页面的 **Attached Claude sessions** 中输入原生 Claude session UUID，点击 **Attach session**。可以挂载从其他工作目录启动的本机会话；页面明确展示原目录，历史和新消息每四秒刷新。来源为 `$CLAUDE_CONFIG_DIR/projects`，默认 `~/.claude/projects`。例如 `ac19a74b-8674-4eb6-903a-34a2ba5c3b0c`。

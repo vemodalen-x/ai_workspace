@@ -153,6 +153,7 @@ export interface ComputeNode {
   ramMb: number;
   sshAlias?: string;
   workerPath?: string;
+  nodePath?: string;
   lastSeen?: string;
   telemetryError?: string;
 }
