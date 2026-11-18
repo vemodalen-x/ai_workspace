@@ -81,7 +81,8 @@ test('folder loading and authenticated browsing validate paths, permissions and 
       headers,
     });
     assert.equal(listing.statusCode, 200);
-    assert.ok(listing.json().folders.some((f: { path: string }) => f.path === path));
+    const canonical = await localFolder(path);
+    assert.ok(listing.json().folders.some((f: { path: string }) => f.path === canonical));
     const project = await svc.createProject({ name: 'Folder', repoPath: path, concurrency: 2 });
     assert.equal(project.executionReady, false);
     assert.throws(() => svc.saveTask(project.id, { title: 'No execution' }), /Git repository root/);

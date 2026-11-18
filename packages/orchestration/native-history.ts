@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { open, readdir, realpath, stat } from 'node:fs/promises';
+import { open, readdir, realpath, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, relative, dirname, resolve, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -30,9 +30,11 @@ const state = (error: unknown) =>
 
 // Reject symlinked records and replaced files. Never accept a client-supplied transcript path.
 async function readWindow(root: string, path: string, tail = false, max = limit) {
+  if (!(await lstat(root)).isDirectory())
+    throw new Error('History source symlinks are not supported');
   const canonicalRoot = await realpath(root);
   const canonical = await realpath(path);
-  if (!inside(canonicalRoot, canonical) || canonical !== resolve(path))
+  if (!inside(canonicalRoot, canonical) || !(await lstat(path)).isFile())
     throw new Error('History source symlinks are not supported');
   const file = await open(
     path,
@@ -40,9 +42,10 @@ async function readWindow(root: string, path: string, tail = false, max = limit)
   );
   try {
     const info = await file.stat();
-    const current = await stat(path);
+    const current = await lstat(path);
     if (
       !info.isFile() ||
+      !current.isFile() ||
       info.ino !== current.ino ||
       info.dev !== current.dev ||
       (await realpath(path)) !== canonical
@@ -286,7 +289,7 @@ export class NativeHistoryReader {
         sources.push(source);
         let db: DatabaseSync | undefined;
         try {
-          if ((await realpath(path)) !== resolve(path)) throw new Error('Symlink index');
+          if (!(await lstat(path)).isFile()) throw new Error('Symlink index');
           db = new DatabaseSync(path, { readOnly: true });
           db.exec('PRAGMA busy_timeout=1000');
           const rows = db

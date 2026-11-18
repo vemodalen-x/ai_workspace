@@ -155,10 +155,17 @@ test('missing, malformed, unreadable, symlinked and changed sources fail clearly
     });
     assert.ok((await empty.scan(f.project)).sources.every((s) => s.state === 'missing'));
     await writeFile(join(f.claude, 'projects/encoded-collision/bad.jsonl'), 'not JSON\n');
-    if (process.platform !== 'win32')
+    if (process.platform !== 'win32') {
       await symlink(f.c, join(f.claude, 'projects/encoded-collision/escape.jsonl'));
+      await rm(join(f.project, '.codex'), { recursive: true });
+      await symlink(f.codex, join(f.project, '.codex'));
+    }
     const data = await f.reader.scan(f.project, true);
     assert.ok(data.sources.some((s) => s.provider === 'claude' && s.state === 'partial'));
+    if (process.platform !== 'win32')
+      assert.ok(
+        data.configs.some((c) => c.path.endsWith('.codex/config.toml') && c.state === 'unreadable'),
+      );
     const codex = data.sessions.find((s) => s.provider === 'codex')!;
     await appendFile(
       f.c,
