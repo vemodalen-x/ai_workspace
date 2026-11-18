@@ -8,6 +8,7 @@ import { assertTransition } from './lifecycle.ts';
 import { verifyCandidate } from './verification.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { localFolder } from './local-folders.ts';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import { Store } from './store.ts';
@@ -125,6 +126,17 @@ export class Orchestrator {
     );
   }
   snapshot(): Snapshot {
+    const removed = new Set(
+      this.store
+        .all('projects')
+        .filter((p) => p.removedAt)
+        .map((p) => p.id),
+    );
+    const removedExecutions = new Set(
+      [...this.store.all('runs'), ...this.store.all('attempts')]
+        .filter((r) => removed.has(r.projectId))
+        .map((r) => r.id),
+    );
     const state = {
       ...Object.fromEntries(
         [
@@ -139,9 +151,19 @@ export class Orchestrator {
           'reservations',
           'trials',
           'attempts',
-        ].map((k) => [k, this.store.all(k as 'projects')]),
+        ].map((k) => [
+          k,
+          this.store
+            .all(k as 'projects')
+            .filter((value) =>
+              k === 'projects'
+                ? !removed.has(value.id)
+                : !removed.has((value as unknown as { projectId: string }).projectId) &&
+                  !removedExecutions.has((value as unknown as { runId: string }).runId),
+            ),
+        ]),
       ),
-      events: this.store.latestEvents(150),
+      events: this.store.latestEvents(150).filter((e) => !e.projectId || !removed.has(e.projectId)),
       providers: this.providers,
       metrics: this.metrics,
     } as Snapshot;
@@ -154,14 +176,33 @@ export class Orchestrator {
     );
   }
   async createProject(input: { name: string; repoPath: string; concurrency: number }) {
-    const repo = await this.git.repository(input.repoPath);
-    if (this.store.all('projects').some((p) => p.repoPath === repo.path))
-      throw new Error('Repository already imported');
+    const path = await localFolder(input.repoPath.trim());
+    let repo: { path: string; branch: string } | undefined;
+    try {
+      repo = await this.git.repository(path);
+    } catch {
+      /* Viewing history does not require Git. */
+    }
+    const existing = this.store.all('projects').find((p) => p.repoPath === path);
+    if (existing) {
+      this.store.tx(() => {
+        this.store.put('projects', {
+          ...existing,
+          removedAt: undefined,
+          archived: false,
+          executionReady: !!repo,
+          baseBranch: repo?.branch ?? '',
+        });
+        this.emit({ type: 'ProjectChanged', data: { id: existing.id, action: 'loaded' } });
+      });
+      return this.store.get('projects', existing.id);
+    }
     const p: Project = {
       id: randomUUID(),
       name: input.name,
-      repoPath: repo.path,
-      baseBranch: repo.branch,
+      repoPath: path,
+      baseBranch: repo?.branch ?? '',
+      executionReady: !!repo,
       concurrency: input.concurrency,
       archived: false,
       createdAt: now(),
@@ -180,6 +221,7 @@ export class Orchestrator {
     patch: Partial<Pick<Project, 'name' | 'concurrency' | 'archived' | 'context'>>,
   ) {
     const p = this.store.get('projects', id);
+    if (p.removedAt) throw new Error('Load the folder again to restore this project');
     if (
       patch.archived &&
       [...this.store.all('runs'), ...this.store.all('attempts')].some(
@@ -201,20 +243,25 @@ export class Orchestrator {
   deleteProject(id: string) {
     const p = this.store.get('projects', id);
     if (
-      this.store.all('tasks').some((t) => t.projectId === id) ||
-      this.store.all('sessions').some((s) => s.projectId === id) ||
-      this.store.all('trials').some((t) => t.projectId === id) ||
-      this.store.all('externalSessions').some((s) => s.projectId === id)
+      [...this.store.all('runs'), ...this.store.all('attempts')].some(
+        (r) => r.projectId === id && activeStates.includes(r.state),
+      )
     )
-      throw new Error('Project has history; archive it to preserve records');
+      throw new Error('Stop or reconcile active runs before removing project');
     this.store.tx(() => {
-      this.store.delete('projects', p.id);
-      this.emit({ type: 'ProjectChanged', data: { id, action: 'deleted' } });
+      this.store.put('projects', { ...p, archived: true, removedAt: now() });
+      this.store.event(
+        { type: 'ProjectChanged', data: { id, action: 'removed' } },
+        { projectId: id },
+      );
     });
+    return { ok: true };
   }
   saveTask(projectId: string, input: unknown, id?: string) {
     const p = this.store.get('projects', projectId);
     if (p.archived) throw new Error('Project is archived');
+    if (p.executionReady === false)
+      throw new Error('Task execution requires a Git repository root with an initial commit');
     const data = taskInput.parse(input);
     this.store.get('nodes', data.nodeId);
     const old = id ? this.store.get('tasks', id) : undefined;

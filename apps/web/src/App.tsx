@@ -1,3 +1,5 @@
+import { ProjectFolderForm } from './ProjectFolderForm.tsx';
+import { ProjectHistory } from './ProjectHistory.tsx';
 import { LanguageSelector } from './LanguageSelector.tsx';
 import { t as tr, useLocale, errorText, uiMessage } from './i18n.ts';
 import { ExternalSessions } from './ExternalSessions.tsx';
@@ -89,7 +91,8 @@ export function App() {
   const [diff, setDiff] = useState(''),
     [diffLoading, setDiffLoading] = useState(false);
   const project =
-    data?.projects.find((p) => p.id === projectId) ?? data?.projects.find((p) => !p.archived);
+    data?.projects.find((p) => p.id === projectId && !p.removedAt) ??
+    data?.projects.find((p) => !p.archived);
   const tasks = data?.tasks.filter((t) => t.projectId === project?.id) ?? [];
   const task = tasks.find((t) => t.id === taskId);
   const taskSessions = data?.sessions.filter((s) => s.taskId === task?.id) ?? [];
@@ -175,6 +178,21 @@ export function App() {
     fn: () => Promise<unknown>,
   ) {
     setModal({ kind: 'confirm', title, detail, label, action: fn });
+  }
+  function removeProject(target: Project) {
+    confirm(
+      () => tr('Remove project'),
+      () =>
+        tr(
+          'Remove {name} from Workspace? Local files and Codex / Claude Code data stay untouched. Load this folder again to restore Workspace history.',
+          { name: target.name },
+        ),
+      () => tr('Remove project'),
+      async () => {
+        await api(`/projects/${target.id}`, 'DELETE');
+        navigate({ view: 'focus', projectId: '', taskId: '', sessionId: '', search: '' });
+      },
+    );
   }
   async function submitModal(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -325,6 +343,7 @@ export function App() {
         queuedCount={queued.length}
         connected={connected}
         onImport={() => setModal({ kind: 'project' })}
+        onRemoveProject={removeProject}
         onProject={(id) =>
           navigate({ view: 'project', projectId: id, taskId: '', sessionId: '', search: '' })
         }
@@ -758,7 +777,10 @@ export function App() {
                   <Empty title={tr('Bring your repository')}>
                     <span>
                       {' '}
-                      {tr('Import a local Git repository with an initial commit.')} <br />
+                      {tr(
+                        'Load an existing local folder to view its configuration and tool history.',
+                      )}{' '}
+                      <br />
                       <button className="text-button" onClick={() => setModal({ kind: 'project' })}>
                         {' '}
                         {tr('Import project')} <ArrowRight size={14} />
@@ -878,34 +900,29 @@ export function App() {
                 <h1>{project?.name ?? tr('Projects')}</h1>
                 <p>
                   <GitBranch size={13} />
-                  {project?.baseBranch ?? tr('No repository selected')}
+                  {project?.executionReady === false
+                    ? tr('Local folder')
+                    : project?.baseBranch || tr('No repository selected')}
                   <span className="divider">/</span>
                   {project?.repoPath ?? tr('Import a local repository to get started')}
                 </p>
               </div>
               <div className="button-group">
+                <button
+                  aria-label={tr('Load local project')}
+                  className="secondary"
+                  onClick={() => setModal({ kind: 'project' })}
+                >
+                  <Plus size={15} /> {tr('Import project')}
+                </button>
                 {project && (
-                  <button
-                    className="secondary"
-                    onClick={() =>
-                      confirm(
-                        () => tr('Archive project'),
-                        () =>
-                          tr('Archive {name}? Source files and execution history are preserved.', {
-                            name: project.name,
-                          }),
-                        () => tr('Archive project'),
-                        () => api(`/projects/${project.id}`, 'PATCH', { archived: true }),
-                      )
-                    }
-                  >
-                    {' '}
-                    {tr('Archive')}{' '}
+                  <button className="secondary" onClick={() => removeProject(project)}>
+                    {tr('Remove project')}
                   </button>
                 )}
                 <button
                   className="primary"
-                  disabled={!project}
+                  disabled={!project || project.archived || project.executionReady === false}
                   onClick={() => setModal({ kind: 'task' })}
                 >
                   <Plus size={15} /> {tr('New task')}{' '}
@@ -929,6 +946,12 @@ export function App() {
                 <GitMerge size={13} /> {tr('Explicit integration approval')}{' '}
               </span>
             </div>
+            {project?.executionReady === false && (
+              <p className="note">
+                {tr('Task execution requires a Git repository root with an initial commit')}
+              </p>
+            )}
+            {project && <ProjectHistory key={'history-' + project.id} projectId={project.id} />}
             {project && (
               <ExternalSessions
                 key={project.id}
@@ -1702,7 +1725,7 @@ export function App() {
         <ModalFrame
           title={
             modal.kind === 'project'
-              ? tr('Import Git project')
+              ? tr('Load local project')
               : modal.kind === 'task'
                 ? modal.task
                   ? tr('Edit task')
@@ -1718,40 +1741,7 @@ export function App() {
           close={() => !busy && setModal(null)}
         >
           <form onSubmit={(e) => void submitModal(e)}>
-            {modal.kind === 'project' && (
-              <>
-                <p className="form-hint">
-                  {' '}
-                  {tr(
-                    'Connect an existing local Git repository with at least one commit. Agents work in separate branches and worktrees.',
-                  )}{' '}
-                </p>
-                <Field
-                  label={tr('Project name')}
-                  name="name"
-                  placeholder="CV-Agent-Project"
-                  required
-                />
-                <Field
-                  label={tr('Repository path')}
-                  name="repoPath"
-                  placeholder="/home/you/projects/cv-agent or C:\\Projects\\cv-agent"
-                  required
-                />
-                <Field
-                  label={tr('Concurrent sessions')}
-                  name="concurrency"
-                  type="number"
-                  value="2"
-                  min="1"
-                  max="32"
-                />
-                <div className="note">
-                  <Shield size={15} />{' '}
-                  {tr('The repository is never reset or deleted by this application.')}{' '}
-                </div>
-              </>
-            )}
+            {modal.kind === 'project' && <ProjectFolderForm />}
             {modal.kind === 'task' && (
               <>
                 <p className="form-hint">

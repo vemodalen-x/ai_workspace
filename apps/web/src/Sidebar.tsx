@@ -12,6 +12,7 @@ import {
   Plus,
   ChevronRight,
   Settings,
+  X,
 } from 'lucide-react';
 import type { Project, Task } from '../../../packages/shared/index.ts';
 import type { WorkspaceView } from './navigation.ts';
@@ -25,6 +26,7 @@ export function Sidebar({
   runningCount,
   connected,
   onImport,
+  onRemoveProject,
   onProject,
   selectTask,
 }: {
@@ -37,6 +39,7 @@ export function Sidebar({
   runningCount: number;
   connected: boolean;
   onImport: () => void;
+  onRemoveProject: (project: Project) => void;
   onProject: (id: string) => void;
   selectTask: (task: Task) => void;
 }) {
@@ -98,16 +101,26 @@ export function Sidebar({
           .filter((p) => !p.archived)
           .map((p) => (
             <div key={p.id}>
-              <button
-                className={project?.id === p.id && view === 'project' ? 'selected' : ''}
-                onClick={() => {
-                  onProject(p.id);
-                }}
-              >
-                <span className="project-square">{p.name[0]?.toUpperCase()}</span>
-                <span>{p.name}</span>
-                <ChevronRight size={13} />
-              </button>
+              <div className="project-nav-row">
+                <button
+                  className={project?.id === p.id && view === 'project' ? 'selected' : ''}
+                  onClick={() => {
+                    onProject(p.id);
+                  }}
+                >
+                  <span className="project-square">{p.name[0]?.toUpperCase()}</span>
+                  <span title={p.repoPath}>{p.name}</span>
+                  <ChevronRight size={13} />
+                </button>
+                <button
+                  className="project-remove"
+                  aria-label={tr('Remove {name}', { name: p.name })}
+                  title={tr('Remove project')}
+                  onClick={() => onRemoveProject(p)}
+                >
+                  <X size={14} />
+                </button>
+              </div>
               {project?.id === p.id &&
                 view === 'project' &&
                 tasks.slice(0, 7).map((t) => (
@@ -122,10 +135,10 @@ export function Sidebar({
                 ))}
             </div>
           ))}
-        {!projects.length && (
+        {!projects.some((p) => !p.archived) && (
           <p className="nav-empty">
             {' '}
-            {tr('Import a Git repository')} <br /> {tr('to start your first project.')}{' '}
+            {tr('Load a local folder')} <br /> {tr('to start your first project.')}{' '}
           </p>
         )}
       </div>
