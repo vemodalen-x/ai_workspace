@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.ts';
 import { ExperimentCompare } from './ExperimentCompare.tsx';
 import { reportedMetrics } from '../../../packages/shared/experiment-results.ts';
 import { usePreference } from './preferences.ts';
@@ -58,21 +59,26 @@ export function ExperimentLedger({
   return (
     <section className="surface fleet-node experiment-ledger">
       <div className="visual-section-heading">
-        <h2>Compare experiment runs</h2>
-        <small>{runs.length} tracked</small>
+        <h2> {tr('Compare experiment runs')} </h2>
+        <small>
+          {runs.length} {tr('tracked')}{' '}
+        </small>
       </div>
       {!runs.length ? (
         <p>
-          Enable “Track as an AI experiment” in a task. Each started Run keeps its own
-          configuration.
+          {' '}
+          {tr(
+            'Enable “Track as an AI experiment” in a task. Each started Run keeps its own configuration.',
+          )}{' '}
         </p>
       ) : (
         <>
           <div className="experiment-filters">
             <label>
-              Experiment group
+              {' '}
+              {tr('Experiment group')}{' '}
               <select value={selected ?? ''} onChange={(e) => setGroup(e.target.value)}>
-                {!matchedGroups.size && <option value="">No matching groups</option>}
+                {!matchedGroups.size && <option value=""> {tr('No matching groups')} </option>}
                 {[...matchedGroups].map(([key, name]) => (
                   <option key={key} value={key}>
                     {name}
@@ -83,29 +89,36 @@ export function ExperimentLedger({
           </div>
           {!matchedGroups.size ? (
             <p role="status">
-              No experiments match this project and search. Clear the project filter or workspace
-              search to see other groups.
+              {' '}
+              {tr(
+                'No experiments match this project and search. Clear the project filter or workspace search to see other groups.',
+              )}{' '}
             </p>
           ) : (
             <ExperimentCompare key={selected} runs={groupRuns} artifacts={data.artifacts} />
           )}
           <p className="comparison-note">
-            Run details show captured inputs. Session links open the conversation and its latest
-            execution.
+            {' '}
+            {tr(
+              'Run details show captured inputs. Session links open the conversation and its latest execution.',
+            )}{' '}
           </p>
           <details className="run-ledger">
-            <summary>Run details · latest {visible.length}</summary>
+            <summary>
+              {' '}
+              {tr('Run details · latest')} {visible.length}
+            </summary>
             <div className="fleet-table-scroll">
               <table className="fleet-table">
                 <thead>
                   <tr>
-                    <th>Run / task</th>
-                    <th>Dataset / version</th>
-                    <th>Seed</th>
-                    <th>Reported metrics</th>
-                    <th>Input commit</th>
-                    <th>Server / device</th>
-                    <th>Configuration & observations</th>
+                    <th> {tr('Run / task')} </th>
+                    <th> {tr('Dataset / version')} </th>
+                    <th> {tr('Seed')} </th>
+                    <th> {tr('Reported metrics')} </th>
+                    <th> {tr('Input commit')} </th>
+                    <th> {tr('Server / device')} </th>
+                    <th> {tr('Configuration & observations')} </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -121,29 +134,33 @@ export function ExperimentLedger({
                           <Badge state={r.state} />
                           {onRun && (
                             <button className="text-button" onClick={() => onRun(r)}>
-                              Open session
+                              {' '}
+                              {tr('Open session')}{' '}
                             </button>
                           )}
                         </td>
                         <td>
-                          {e.dataset || 'unset'}
+                          {e.dataset || tr('unset')}
                           <code>{e.datasetVersion || 'unversioned'}</code>
                         </td>
-                        <td>{e.seed ?? 'unset'}</td>
+                        <td>{e.seed ?? tr('unset')}</td>
                         <td>
                           {readings.length
                             ? readings.map((p) => (
                                 <div key={p.name + ':' + p.unit}>
                                   <b>{p.name}</b> {p.value} {p.unit}
-                                  <small>step {p.step}</small>
+                                  <small>
+                                    {' '}
+                                    {tr('step')} {p.step}
+                                  </small>
                                 </div>
                               ))
-                            : 'No verified report'}
+                            : tr('No verified report')}
                         </td>
-                        <td>{m.baseCommit?.slice(0, 12) ?? 'unavailable'}</td>
+                        <td>{m.baseCommit?.slice(0, 12) ?? tr('unavailable')}</td>
                         <td>
                           {data.nodes.find((n) => n.id === r.nodeId)?.name ?? r.nodeId}
-                          <code>{m.environment.gpuId ?? 'not recorded / none'}</code>
+                          <code>{m.environment.gpuId ?? tr('not recorded / none')}</code>
                         </td>
                         <td>
                           <RunResourceWindow run={r} />

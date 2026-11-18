@@ -3139,3 +3139,34 @@ dd {
   max-height: 160px;
   display: block;
 }
+
+.language-switch {
+  display: flex;
+  flex-direction: row;
+  margin: 0;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.language-switch select {
+  width: auto;
+  min-width: 88px;
+  padding: 6px 8px;
+}
+html[lang='zh-CN'] .sidebar nav button,
+html[lang='zh-CN'] .page-heading h1 {
+  letter-spacing: normal;
+}
+@media (max-width: 800px) {
+  .language-switch > span {
+    display: none;
+  }
+  .top-tools {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+  }
+  .top-tools .search input {
+    width: 76px;
+  }
+}

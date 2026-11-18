@@ -1,7 +1,8 @@
+import { t as tr } from './i18n.ts';
 import type { Metrics } from '../../../packages/shared/index.ts';
 import type { TelemetrySample } from '../../../packages/shared/telemetry.ts';
 const number = (v: number | null, unit: string) =>
-  v === null ? 'Unavailable' : v.toFixed(1) + unit;
+  v === null ? tr('Unavailable') : v.toFixed(1) + unit;
 export function HistoryChart({
   samples,
   value,
@@ -41,7 +42,7 @@ export function HistoryChart({
         <svg
           viewBox="0 0 400 62"
           role="img"
-          aria-label={`${label} history; gaps indicate unavailable samples`}
+          aria-label={tr('{label} history; gaps indicate unavailable samples', { label: label })}
         >
           <path d="M0,3 H400 M0,30 H400 M0,57 H400" stroke="var(--border)" strokeDasharray="3 4" />
           <path d={path} fill="none" stroke="currentColor" strokeWidth="2" />
@@ -52,11 +53,13 @@ export function HistoryChart({
           ))}
         </svg>
       ) : (
-        <p>Waiting for history / metric unavailable</p>
+        <p> {tr('Waiting for history / metric unavailable')} </p>
       )}
       <div className="chart-scale">
         <small>0–100%</small>
-        <small>{dots.length} readings</small>
+        <small>
+          {dots.length} {tr('readings')}{' '}
+        </small>
       </div>
     </figure>
   );

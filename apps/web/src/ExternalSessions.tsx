@@ -1,3 +1,4 @@
+import { t as tr, errorText, uiMessage } from './i18n.ts';
 import React, { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './api.ts';
@@ -66,17 +67,20 @@ export function ExternalSessions({
     }
   }
   return (
-    <section className="surface external-sessions" aria-label="Attached Claude sessions">
-      <h2>Attached Claude sessions</h2>
+    <section className="surface external-sessions" aria-label={tr('Attached Claude sessions')}>
+      <h2> {tr('Attached Claude sessions')} </h2>
       <p>
-        Read-only history and new messages, refreshed every 4 seconds. The original terminal owns
-        execution. Attaching does not start an agent or import run/merge evidence.
+        {' '}
+        {tr(
+          'Read-only history and new messages, refreshed every 4 seconds. The original terminal owns execution. Attaching does not start an agent or import run/merge evidence.',
+        )}{' '}
       </p>
       <form onSubmit={(e) => void attach(e)} className="external-attach-form">
         <label>
-          Claude session ID
+          {' '}
+          {tr('Claude session ID')}{' '}
           <input
-            aria-label="Claude session ID"
+            aria-label={tr('Claude session ID')}
             placeholder="ac19a74b-8674-4eb6-903a-34a2ba5c3b0c"
             value={sessionId}
             onChange={(e) => setSessionId(e.target.value)}
@@ -85,18 +89,20 @@ export function ExternalSessions({
           />
         </label>
         <button className="secondary" disabled={archived || busy || !sessionId.trim()}>
-          Attach session
+          {' '}
+          {tr('Attach session')}{' '}
         </button>
       </form>
-      {(error || list.error) && <p role="alert">{error || list.error?.message}</p>}
-      {list.isLoading && <p>Loading attached sessions…</p>}
-      {list.data?.length === 0 && <p>No attached sessions.</p>}
+      {(error || list.error) && <p role="alert">{errorText(error || list.error?.message || '')}</p>}
+      {list.isLoading && <p> {tr('Loading attached sessions…')} </p>}
+      {list.data?.length === 0 && <p> {tr('No attached sessions.')} </p>}
       {!!list.data?.length && (
         <>
           <label>
-            Attached session
+            {' '}
+            {tr('Attached session')}{' '}
             <select
-              aria-label="Attached session"
+              aria-label={tr('Attached session')}
               value={current?.id ?? ''}
               onChange={(e) => {
                 setSelected(e.target.value);
@@ -113,23 +119,26 @@ export function ExternalSessions({
           {current && (
             <>
               <p>
-                Source directory: <code>{current.sourceCwd || 'Unknown'}</code>. This session may
-                have worked outside the selected project.
+                {' '}
+                {tr('Source directory:')} <code>{current.sourceCwd || tr('Unknown')}</code>{' '}
+                {tr('. This session may have worked outside the selected project.')}{' '}
               </p>
               <div className="external-actions">
-                <span>Read-only · Claude Code</span>
+                <span> {tr('Read-only · Claude Code')} </span>
                 {detachId === current.id ? (
                   <>
-                    <span>Remove this link? Source history is preserved.</span>
+                    <span> {tr('Remove this link? Source history is preserved.')} </span>
                     <button
                       className="secondary"
                       disabled={busy}
                       onClick={() => void detach(current.id)}
                     >
-                      Confirm detach
+                      {' '}
+                      {tr('Confirm detach')}{' '}
                     </button>
                     <button className="secondary" onClick={() => setDetachId('')}>
-                      Cancel
+                      {' '}
+                      {tr('Cancel')}{' '}
                     </button>
                   </>
                 ) : (
@@ -138,43 +147,51 @@ export function ExternalSessions({
                     disabled={busy}
                     onClick={() => setDetachId(current.id)}
                   >
-                    Detach session
+                    {' '}
+                    {tr('Detach session')}{' '}
                   </button>
                 )}
               </div>
             </>
           )}
-          {output.isLoading && <p>Loading session history…</p>}
+          {output.isLoading && <p> {tr('Loading session history…')} </p>}
           {output.error && (
             <p role="alert">
-              History unavailable: {output.error.message}. The link is preserved; retrying every 4
-              seconds.
+              {' '}
+              {tr('History unavailable:')} {errorText(output.error.message ?? '')}{' '}
+              {tr('. The link is preserved; retrying every 4 seconds.')}{' '}
             </p>
           )}
           {output.data && (
             <>
               <p>
-                Source updated {new Date(output.data.modifiedAt).toLocaleString()} ·{' '}
-                {output.data.bytes.toLocaleString()} bytes. This is file activity, not proof the
-                agent is running.
+                {' '}
+                {tr('Source updated')} {new Date(output.data.modifiedAt).toLocaleString()} ·{' '}
+                {output.data.bytes.toLocaleString()}{' '}
+                {tr('bytes. This is file activity, not proof the agent is running.')}{' '}
               </p>
               {(output.data.truncated || output.data.skipped > 0) && (
                 <p role="status">
-                  Showing a bounded excerpt: at most the last 1 MiB / 200 messages.{' '}
-                  {output.data.skipped} malformed or oversized records skipped. Large message text
-                  is limited to 32,000 characters.
+                  {' '}
+                  {tr('Showing a bounded excerpt: at most the last 1 MiB / 200 messages.')}{' '}
+                  {output.data.skipped}{' '}
+                  {tr(
+                    'malformed or oversized records skipped. Large message text is limited to 32,000 characters.',
+                  )}{' '}
                 </p>
               )}
               <div
                 className="external-transcript"
-                aria-label="Session transcript"
+                aria-label={tr('Session transcript')}
                 aria-busy={output.isFetching}
               >
-                {!output.data.entries.length && <p>No displayable messages in this excerpt.</p>}
+                {!output.data.entries.length && (
+                  <p> {tr('No displayable messages in this excerpt.')} </p>
+                )}
                 {output.data.entries.map((entry, i) => (
                   <article key={i}>
                     <header>
-                      <strong>{entry.role}</strong>
+                      <strong>{uiMessage(entry.role)}</strong>
                       {entry.timestamp && <time>{entry.timestamp}</time>}
                     </header>
                     <pre>{entry.text}</pre>

@@ -1,3 +1,5 @@
+import { LanguageSelector } from './LanguageSelector.tsx';
+import { t as tr, uiMessage } from './i18n.ts';
 import React, { useEffect, useRef, type ReactNode } from 'react';
 import { Layers, X, Check, Shield, GitBranch, Activity } from 'lucide-react';
 import type { StoredEvent } from '../../../packages/shared/index.ts';
@@ -34,7 +36,7 @@ export function MetricBar({
     <div className="metric-bar">
       <div>
         <span>{label}</span>
-        <b>{value === null ? 'Unavailable' : `${value.toFixed(1)}%`}</b>
+        <b>{value === null ? tr('Unavailable') : `${value.toFixed(1)}%`}</b>
       </div>
       <div className="meter">
         <i style={{ width: `${Math.min(value ?? 0, 100)}%` }} />
@@ -88,7 +90,8 @@ export function ModalFrame({
       <div className="modal-inner">
         <div className="modal-heading">
           <h2>{title}</h2>
-          <button aria-label="Close dialog" onClick={close}>
+          <LanguageSelector />
+          <button aria-label={tr('Close dialog')} onClick={close}>
             <X size={19} />
           </button>
         </div>
@@ -116,22 +119,24 @@ export function Timeline({ events, full = false }: { events: StoredEvent[]; full
             )}
           </div>
           <div>
-            <b>{e.type.replace(/([A-Z])/g, ' $1').trim()}</b>
+            <b>{uiMessage(e.type)}</b>
             <p>
               {String(
                 e.data.task ??
                   e.data.name ??
                   e.data.text ??
                   e.data.error ??
-                  e.data.state ??
-                  e.data.action ??
+                  (typeof e.data.state === 'string' ? uiMessage(e.data.state) : e.data.state) ??
+                  (typeof e.data.action === 'string' ? uiMessage(e.data.action) : e.data.action) ??
                   e.data.provider ??
-                  'Workspace state updated',
+                  tr('Workspace state updated'),
               ).slice(0, 180)}
             </p>
             {full && (
               <small>
-                Event #{e.seq} · {e.runId ? `Run ${short(e.runId)}` : 'Workspace'}
+                {' '}
+                {tr('Event #')} {e.seq} ·{' '}
+                {e.runId ? tr('Run {id}', { id: short(e.runId) }) : tr('Workspace')}
               </small>
             )}
           </div>
@@ -139,7 +144,10 @@ export function Timeline({ events, full = false }: { events: StoredEvent[]; full
         </div>
       ))}
       {!events.length && (
-        <Empty title="A clean start">Your project and execution events will appear here.</Empty>
+        <Empty title={tr('A clean start')}>
+          {' '}
+          {tr('Your project and execution events will appear here.')}{' '}
+        </Empty>
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.ts';
 import { useState } from 'react';
 import type { Task } from '../../../packages/shared/index.ts';
 export function readExperiment(form: FormData, required = false) {
@@ -35,15 +36,16 @@ export function ExperimentFields({
             name="trackExperiment"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-          />
-          Track as an AI experiment
+          />{' '}
+          {tr('Track as an AI experiment')}{' '}
         </label>
       )}
       {(enabled || required) && (
         <>
           <div className="form-grid">
             <label>
-              Experiment group
+              {' '}
+              {tr('Experiment group')}{' '}
               <input
                 name="experimentGroup"
                 required
@@ -53,7 +55,8 @@ export function ExperimentFields({
               />
             </label>
             <label>
-              Random seed
+              {' '}
+              {tr('Random seed')}{' '}
               <input
                 name="experimentSeed"
                 type="number"
@@ -64,7 +67,8 @@ export function ExperimentFields({
               />
             </label>
             <label>
-              Dataset
+              {' '}
+              {tr('Dataset')}{' '}
               <input
                 name="experimentDataset"
                 maxLength={500}
@@ -73,17 +77,19 @@ export function ExperimentFields({
               />
             </label>
             <label>
-              Dataset version / digest
+              {' '}
+              {tr('Dataset version / digest')}{' '}
               <input
                 name="experimentDatasetVersion"
                 maxLength={200}
                 defaultValue={experiment?.datasetVersion}
-                placeholder="Manifest SHA or immutable version"
+                placeholder={tr('Manifest SHA or immutable version')}
               />
             </label>
           </div>
           <label>
-            Experiment parameters (JSON object)
+            {' '}
+            {tr('Experiment parameters (JSON object)')}{' '}
             <textarea
               name="experimentParameters"
               rows={3}
@@ -92,8 +98,10 @@ export function ExperimentFields({
             />
           </label>
           <small>
-            Settings are captured with the Run. Your training code must apply the seed and
-            parameters.
+            {' '}
+            {tr(
+              'Settings are captured with the Run. Your training code must apply the seed and parameters.',
+            )}{' '}
           </small>
         </>
       )}
