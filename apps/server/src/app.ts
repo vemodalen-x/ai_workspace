@@ -89,6 +89,10 @@ export async function createApp(
     const query = z.object({ refresh: z.enum(['true', 'false']).optional() }).parse(req.query);
     return native.scan(registeredProject(req.params.id).repoPath, query.refresh === 'true');
   });
+  app.get<{ Params: { id: string } }>('/api/projects/:id/history-task-tree', async (req) => {
+    const query = z.object({ refresh: z.enum(['true', 'false']).optional() }).parse(req.query);
+    return native.taskTree(registeredProject(req.params.id).repoPath, query.refresh === 'true');
+  });
   app.get<{ Params: { id: string; session: string } }>(
     '/api/projects/:id/local-history/:session',
     async (req) =>

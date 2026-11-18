@@ -1,3 +1,4 @@
+import { HistoryTaskTree } from './HistoryTaskTree.tsx';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api.ts';
@@ -10,6 +11,7 @@ export function ProjectHistory({ projectId }: { projectId: string }) {
     queryKey: ['local-history', projectId],
     queryFn: () => api<NativeHistory>(`/projects/${projectId}/local-history?refresh=true`),
     staleTime: 15000,
+    refetchInterval: 15000,
   });
   const output = useQuery({
     queryKey: ['local-history-output', projectId, selected],
@@ -91,6 +93,7 @@ export function ProjectHistory({ projectId }: { projectId: string }) {
               <option value="claude">Claude Code</option>
             </select>
           </label>
+          <HistoryTaskTree projectId={projectId} provider={provider} onSession={setSelected} />
           {!sessions.length ? (
             <p className="form-hint">
               {t(

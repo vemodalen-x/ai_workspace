@@ -225,9 +225,19 @@ test('native history API requires auth, returns both real fixture transcripts an
       assert.equal(transcript.statusCode, 200);
       assert.ok(transcript.json().entries.some((e: { text: string }) => e.text.includes('原文')));
     }
+    const treeUrl = `/api/projects/${project.id}/history-task-tree`;
+    assert.equal(
+      (await app.inject({ url: treeUrl, headers: { host: 'localhost' } })).statusCode,
+      401,
+    );
+    const tree = await app.inject({ url: treeUrl, headers });
+    assert.equal(tree.statusCode, 200);
+    assert.equal(tree.json().nodes.filter((n: { kind: string }) => n.kind === 'session').length, 2);
+    assert.equal(svc.snapshot().tasks.length, 0);
     assert.equal((await app.inject({ url: url + '/arbitrary-path', headers })).statusCode, 400);
     svc.deleteProject(project.id);
     assert.equal((await app.inject({ url, headers })).statusCode, 404);
+    assert.equal((await app.inject({ url: treeUrl, headers })).statusCode, 404);
     assert.ok((await readFile(f.c, 'utf8')).includes('npm test 中文 原文'));
   } finally {
     await app.close();

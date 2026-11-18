@@ -3254,3 +3254,43 @@ html[lang='zh-CN'] .page-heading h1 {
   border-top: 1px solid var(--border);
   padding: 12px 0;
 }
+
+.history-task-tree {
+  margin: 16px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.history-task-tree > ul {
+  max-height: 480px;
+  overflow: auto;
+}
+.history-task-tree ul {
+  list-style: none;
+  padding-left: 16px;
+}
+.history-task-tree > ul {
+  padding-left: 0;
+}
+.history-task-tree li {
+  padding: 8px 0 8px 8px;
+  border-left: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.history-task-tree summary {
+  display: list-item;
+}
+.history-task-tree b {
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.history-task-kind,
+.history-task-state {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0 8px;
+}
+.history-task-tree .text-button {
+  font-size: 11px;
+  padding: 4px 8px;
+}

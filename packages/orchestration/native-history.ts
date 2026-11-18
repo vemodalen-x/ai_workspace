@@ -5,12 +5,14 @@ import { join, relative, dirname, resolve, isAbsolute } from 'node:path';
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { localFolder } from './local-folders.ts';
+import { deriveHistoryTasks } from './history-task-tree.ts';
 import { redact } from '../agent-adapters/process.ts';
 import type {
   NativeConfig,
   NativeHistory,
   NativeOutput,
   NativeProvider,
+  HistoryTaskTree,
   NativeSession,
 } from '../shared/native-history.ts';
 
@@ -55,10 +57,12 @@ async function readWindow(root: string, path: string, tail = false, max = limit)
       start = tail ? info.size - size : 0;
     const buffer = Buffer.alloc(size);
     const { bytesRead } = await file.read(buffer, 0, size, start);
-    let text = buffer.subarray(0, bytesRead).toString('utf8');
-    if (start) text = text.slice(text.indexOf('\n') + 1);
+    const raw = buffer.subarray(0, bytesRead);
+    const discardedBytes = start ? raw.indexOf(10) + 1 : 0;
+    const text = raw.subarray(discardedBytes).toString('utf8');
     return {
       text,
+      offset: start + discardedBytes,
       bytes: info.size,
       modifiedAt: info.mtime.toISOString(),
       truncated: info.size > size,
@@ -117,6 +121,7 @@ interface Located extends NativeSession {
 }
 
 export class NativeHistoryReader {
+  private treeCache = new Map<string, { version: string; value: HistoryTaskTree }>();
   private cache = new Map<string, { time: number; value: NativeHistory; located: Located[] }>();
   constructor(
     private roots = {
@@ -340,6 +345,63 @@ export class NativeHistoryReader {
     if (this.cache.size > 30) this.cache.clear();
     this.cache.set(project, { time: Date.now(), value, located: located.slice(0, 300) });
     return value;
+  }
+  async taskTree(projectInput: string, refresh = false): Promise<HistoryTaskTree> {
+    const project = await localFolder(projectInput);
+    const history = await this.scan(project, refresh);
+    const version = JSON.stringify([
+      history.sessions.map((s) => [s.id, s.bytes, s.modifiedAt, s.title]),
+      history.sources,
+    ]);
+    const cached = this.treeCache.get(project);
+    if (!refresh && cached?.version === version) return cached.value;
+    const result: HistoryTaskTree = {
+      nodes: [],
+      truncated: false,
+      skipped: 0,
+      unavailableSessions: 0,
+    };
+    const seen = new Set<string>();
+    let budget = 32 * limit;
+    for (const session of this.cache.get(project)?.located ?? []) {
+      const rootId = `history:${session.provider}:${session.nativeId}`;
+      if (seen.has(rootId)) continue;
+      if (result.nodes.length >= 2000 || budget <= 0) {
+        result.truncated = true;
+        break;
+      }
+      try {
+        const { metadata } = await metadataWindow(session.root, session.path, session.provider);
+        if (
+          !(await matches(metadata?.cwd, project)) ||
+          (session.provider === 'codex' ? metadata?.id : metadata?.sessionId) !== session.nativeId
+        )
+          throw new Error('Session changed');
+        const data = await readWindow(
+          session.root,
+          session.path,
+          true,
+          Math.min(budget, 8 * limit),
+        );
+        budget -= Math.min(data.bytes, 8 * limit);
+        const tree = deriveHistoryTasks(
+          session,
+          data.text,
+          data.offset,
+          Math.min(1000, 2000 - result.nodes.length),
+        );
+        seen.add(rootId);
+        result.nodes.push(...tree.nodes);
+        result.skipped += tree.skipped;
+        result.truncated ||= data.truncated || tree.truncated;
+      } catch {
+        result.unavailableSessions++;
+      }
+    }
+    result.truncated ||= history.sources.some((s) => s.state === 'partial');
+    if (this.treeCache.size > 30) this.treeCache.clear();
+    this.treeCache.set(project, { version, value: result });
+    return result;
   }
   async output(projectInput: string, id: string): Promise<NativeOutput> {
     const project = await localFolder(projectInput);

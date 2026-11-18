@@ -29,3 +29,22 @@ export interface NativeOutput {
   truncated: boolean;
   skipped: number;
 }
+
+export interface HistoryTaskNode {
+  id: string;
+  parentId: string | null;
+  sessionId: string;
+  provider: NativeProvider;
+  kind: 'session' | 'request' | 'plan';
+  title: string;
+  description: string;
+  state: 'recorded' | 'pending' | 'in_progress' | 'completed';
+  timestamp?: string;
+  sourceOffset?: number;
+}
+export interface HistoryTaskTree {
+  nodes: HistoryTaskNode[];
+  truncated: boolean;
+  skipped: number;
+  unavailableSessions: number;
+}
