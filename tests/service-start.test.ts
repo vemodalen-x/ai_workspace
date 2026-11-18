@@ -110,25 +110,29 @@ test('persisted SSH nodes retain their validated absolute Node executable path',
 });
 
 // Releases are selected through a `current` symlink by the production unit.
-test('launcher starts when its entrypoint is reached through a release symlink', async () => {
-  const dir = await directory();
-  try {
-    await mkdir(join(dir, 'dist/server/src'), { recursive: true });
-    await writeFile(join(dir, 'dist/server/src/index.js'), 'console.log("LAUNCHER_STARTED");');
-    await symlink(resolve('scripts/service-start.mjs'), join(dir, 'launcher.mjs'));
-    const child = spawn(process.execPath, [join(dir, 'launcher.mjs')], {
-      cwd: dir,
-      env: { ...process.env, WORKSPACE_DATA_DIR: join(dir, 'data') },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-    });
-    const [code] = await once(child, 'exit');
-    assert.equal(code, 0);
-    assert.match(output, /LAUNCHER_STARTED/);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+test(
+  'launcher starts when its entrypoint is reached through a release symlink',
+  { skip: process.platform !== 'linux' },
+  async () => {
+    const dir = await directory();
+    try {
+      await mkdir(join(dir, 'dist/server/src'), { recursive: true });
+      await writeFile(join(dir, 'dist/server/src/index.js'), 'console.log("LAUNCHER_STARTED");');
+      await symlink(resolve('scripts/service-start.mjs'), join(dir, 'launcher.mjs'));
+      const child = spawn(process.execPath, [join(dir, 'launcher.mjs')], {
+        cwd: dir,
+        env: { ...process.env, WORKSPACE_DATA_DIR: join(dir, 'data') },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let output = '';
+      child.stdout.on('data', (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+      const [code] = await once(child, 'exit');
+      assert.equal(code, 0);
+      assert.match(output, /LAUNCHER_STARTED/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
