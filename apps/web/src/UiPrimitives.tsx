@@ -1,6 +1,6 @@
 import { LanguageSelector } from './LanguageSelector.tsx';
 import { t as tr, uiMessage } from './i18n.ts';
-import React, { useEffect, useRef, type ReactNode } from 'react';
+import React, { useEffect, useRef, useId, type ReactNode } from 'react';
 import { Layers, X, Check, Shield, GitBranch, Activity } from 'lucide-react';
 import type { StoredEvent } from '../../../packages/shared/index.ts';
 const fmt = (date: string) =>
@@ -71,6 +71,7 @@ export function ModalFrame({
   close: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     ref.current?.showModal();
     return () => ref.current?.close();
@@ -79,6 +80,7 @@ export function ModalFrame({
     <dialog
       ref={ref}
       className="modal"
+      aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -89,7 +91,7 @@ export function ModalFrame({
     >
       <div className="modal-inner">
         <div className="modal-heading">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <LanguageSelector />
           <button aria-label={tr('Close dialog')} onClick={close}>
             <X size={19} />

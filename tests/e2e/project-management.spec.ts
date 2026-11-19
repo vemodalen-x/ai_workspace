@@ -18,6 +18,10 @@ test('browse an existing folder, reopen duplicates, remove registration and relo
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('Repository path', { exact: true }).fill(root);
     await dialog.getByRole('button', { name: 'Browse local folders', exact: true }).click();
+    await expect(dialog).toHaveAccessibleName('Load local project');
+    await dialog.getByLabel('Filter folders', { exact: true }).fill('missing-folder');
+    await expect(dialog.getByRole('status')).toContainText('No matching folders');
+    await dialog.getByLabel('Filter folders', { exact: true }).fill('existing');
     await dialog.getByRole('button', { name: 'existing 中文', exact: true }).click();
     await dialog.getByRole('button', { name: 'Use this folder', exact: true }).click();
     await expect(dialog.getByLabel('Repository path', { exact: true })).toHaveValue(folder);

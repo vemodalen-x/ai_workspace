@@ -16,6 +16,7 @@ export function ProjectFolderForm() {
   const [listing, setListing] = useState<FolderListing>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('');
   async function browse(target?: string) {
     setLoading(true);
     setError('');
@@ -24,6 +25,7 @@ export function ProjectFolderForm() {
         '/local-folders' + (target ? '?path=' + encodeURIComponent(target) : ''),
       );
       setListing(data);
+      setFilter('');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -70,11 +72,12 @@ export function ProjectFolderForm() {
         disabled={loading}
         onClick={() => void browse(path || undefined)}
       >
-        {t('Browse local folders')}
+        {t(loading ? 'Loading folders…' : 'Browse local folders')}
       </button>
       {error && <p role="alert">{errorText(error)}</p>}
       {listing && (
         <section className="folder-browser" aria-label={t('Local folders')}>
+          <p className="form-hint">{t('Folders are on the machine running Workspace.')}</p>
           <code>{listing.path}</code>
           <div className="button-group">
             <button
@@ -97,19 +100,29 @@ export function ProjectFolderForm() {
               {t('Use this folder')}
             </button>
           </div>
-          <div className="folder-list">
-            {listing.folders.map((folder) => (
-              <button
-                type="button"
-                key={folder.path}
-                disabled={loading}
-                onClick={() => void browse(folder.path)}
-              >
-                {folder.name}
-              </button>
-            ))}
+          <label>
+            {t('Filter folders')}
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} />
+          </label>
+          <div className="folder-list" aria-busy={loading}>
+            {listing.folders
+              .filter((folder) => folder.name.toLowerCase().includes(filter.trim().toLowerCase()))
+              .map((folder) => (
+                <button
+                  type="button"
+                  key={folder.path}
+                  disabled={loading}
+                  onClick={() => void browse(folder.path)}
+                >
+                  {folder.name}
+                </button>
+              ))}
           </div>
           {!listing.folders.length && <p>{t('No subfolders')}</p>}
+          {!!listing.folders.length &&
+            !listing.folders.some((folder) =>
+              folder.name.toLowerCase().includes(filter.trim().toLowerCase()),
+            ) && <p role="status">{t('No matching folders')}</p>}
           {listing.truncated && (
             <p>{t('Only the first 300 folders are shown. Enter a path to open another folder.')}</p>
           )}

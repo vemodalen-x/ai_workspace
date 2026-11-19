@@ -894,5 +894,13 @@
   "{count} sessions could not be read for the task tree.": "{count} sessions could not be read for the task tree.",
   "History tasks": "History tasks",
   "No readable history tasks found for this project.": "No readable history tasks found for this project.",
-  "No matching history tasks": "No matching history tasks"
+  "No matching history tasks": "No matching history tasks",
+  "Expand all": "Expand all",
+  "Collapse all": "Collapse all",
+  "Clear search": "Clear search",
+  "Matching branches are expanded while searching.": "Matching branches are expanded while searching.",
+  "Loading folders…": "Loading folders…",
+  "Folders are on the machine running Workspace.": "Folders are on the machine running Workspace.",
+  "Filter folders": "Filter folders",
+  "No matching folders": "No matching folders"
 }

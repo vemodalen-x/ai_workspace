@@ -80,21 +80,22 @@ test('loading a folder automatically generates both provider task trees, refresh
   try {
     await page.goto('/#/project?project=' + registered.id);
     const tree = page.getByRole('region', { name: 'History task tree', exact: true });
+    await tree.getByRole('button', { name: 'Expand all', exact: true }).click();
     await expect(
-      tree.getByRole('treeitem', { name: 'Implement 原始 Codex task', exact: true }),
+      tree.getByRole('listitem', { name: 'Implement 原始 Codex task', exact: true }),
     ).toBeVisible();
     await expect(
-      tree.getByRole('treeitem', { name: 'Original Claude task', exact: true }),
+      tree.getByRole('listitem', { name: 'Original Claude task', exact: true }),
     ).toBeVisible();
     await expect(
-      tree.getByRole('treeitem', { name: 'Validate --flag', exact: true }),
+      tree.getByRole('listitem', { name: 'Validate --flag', exact: true }),
     ).toContainText('Plan marked pending');
     await expect(
-      tree.getByRole('treeitem', { name: 'Check 中文 plan', exact: true }),
+      tree.getByRole('listitem', { name: 'Check 中文 plan', exact: true }),
     ).toContainText('Plan marked complete');
-    const count = await tree.getByRole('treeitem').count();
+    const count = await tree.getByRole('listitem').count();
     await tree.getByRole('button', { name: 'Refresh task tree', exact: true }).click();
-    await expect(tree.getByRole('treeitem')).toHaveCount(count);
+    await expect(tree.getByRole('listitem')).toHaveCount(count);
     await tree
       .getByRole('button', { name: 'View source for Implement 原始 Codex task', exact: true })
       .click();
@@ -114,23 +115,24 @@ test('loading a folder automatically generates both provider task trees, refresh
       }),
     );
     await expect(
-      tree.getByRole('treeitem', { name: 'New incremental request', exact: true }),
+      tree.getByRole('listitem', { name: 'New incremental request', exact: true }),
     ).toBeVisible({ timeout: 25000 });
     await page.reload();
+    await tree.getByRole('button', { name: 'Expand all', exact: true }).click();
     await expect(
-      tree.getByRole('treeitem', { name: 'New incremental request', exact: true }),
+      tree.getByRole('listitem', { name: 'New incremental request', exact: true }),
     ).toHaveCount(1);
     await page.getByRole('combobox', { name: 'Language / 语言' }).last().selectOption('zh');
     const chinese = page.getByRole('region', { name: '历史任务树', exact: true });
     await expect(
-      chinese.getByRole('treeitem', { name: 'Validate --flag', exact: true }),
+      chinese.getByRole('listitem', { name: 'Validate --flag', exact: true }),
     ).toContainText('计划标记为待处理');
     await chinese.getByLabel('搜索历史任务', { exact: true }).fill('Check 中文');
     await expect(
-      chinese.getByRole('treeitem', { name: 'Check 中文 plan', exact: true }),
+      chinese.getByRole('listitem', { name: 'Check 中文 plan', exact: true }),
     ).toBeVisible();
     await expect(
-      chinese.getByRole('treeitem', { name: 'Implement 原始 Codex task', exact: true }),
+      chinese.getByRole('listitem', { name: 'Implement 原始 Codex task', exact: true }),
     ).toHaveCount(0);
     const snapshot = await (await page.request.get('/api/snapshot', { headers })).json();
     expect(
