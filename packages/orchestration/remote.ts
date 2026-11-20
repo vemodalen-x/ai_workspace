@@ -9,6 +9,11 @@ export const sshNodeInput = z.object({
     .string()
     .regex(/^\/[a-zA-Z0-9_./-]+$/)
     .refine((s) => !s.split('/').includes('..')),
+  nodePath: z
+    .string()
+    .regex(/^\/[a-zA-Z0-9_./-]+$/)
+    .refine((s) => !s.split('/').includes('..'))
+    .optional(),
   cpu: z.number().int().positive().max(1024),
   ramMb: z.number().int().positive().max(1048576),
 });
@@ -23,6 +28,7 @@ export interface RemoteRequest {
   prompt?: string;
   providerSessionId?: string;
   model?: string;
+  reasoningEffort?: AgentConfig['reasoningEffort'];
   gpu?: string | null;
   timeoutSec?: number;
 }
@@ -50,7 +56,7 @@ export async function remoteRequest(
       '-o',
       'ServerAliveCountMax=2',
       node.sshAlias,
-      `node '${node.workerPath}'`,
+      `${node.nodePath ?? 'node'} '${node.workerPath}'`,
     ],
     input: JSON.stringify(request) + '\n',
     keepStdinOpen: true,
@@ -87,6 +93,7 @@ export async function runRemote(
       prompt: c.prompt,
       providerSessionId: c.providerSessionId,
       model: c.model,
+      reasoningEffort: c.reasoningEffort,
       gpu: c.gpu,
     },
     c.signal,

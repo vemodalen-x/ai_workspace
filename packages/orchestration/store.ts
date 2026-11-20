@@ -18,7 +18,6 @@ import type {
 } from '../shared/index.ts';
 import { now } from '../shared/index.ts';
 import type { Trial, TrialAttempt } from '../shared/trials.ts';
-
 import type { ExternalSession } from '../shared/external-sessions.ts';
 
 export interface Tables {

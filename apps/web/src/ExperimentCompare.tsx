@@ -1,3 +1,4 @@
+import { t as tr, uiMessage } from './i18n.ts';
 import { useEffect } from 'react';
 import { usePreference } from './preferences.ts';
 import {
@@ -41,7 +42,9 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
     }));
   }, [selectedKey, defaultBase?.run.id, baselineId]);
   if (!selected)
-    return <p className="visual-empty">No commit-matched validation metrics in these runs.</p>;
+    return (
+      <p className="visual-empty"> {tr('No commit-matched validation metrics in these runs.')} </p>
+    );
   const visibleIds = new Set(comparisonWindow(runs, base?.run.id).map((r) => r.id));
   const changes = rowsWithReadings
     .filter((row) => visibleIds.has(row.run.id))
@@ -49,19 +52,20 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
       ...row,
       ...(base
         ? metricChange(base.run, row.run, base.point, row.point)
-        : { delta: null, reason: 'Select an available baseline' }),
+        : { delta: null, reason: tr('Select an available baseline') }),
     }));
   const range = Math.max(...changes.map((row) => Math.abs(row.delta ?? 0)));
   return (
-    <section className="compare-panel" aria-label="Metric comparison">
+    <section className="compare-panel" aria-label={tr('Metric comparison')}>
       <div className="visual-section-heading">
         <h2>
-          <SlidersHorizontal size={17} /> Metric comparison
+          <SlidersHorizontal size={17} /> {tr('Metric comparison')}{' '}
         </h2>
       </div>
       <div className="compare-controls">
         <label>
-          Metric and unit
+          {' '}
+          {tr('Metric and unit')}{' '}
           <select
             value={JSON.stringify([selected.name, selected.unit])}
             onChange={(e) => setPreference({ ...preference, metric: e.target.value })}
@@ -74,7 +78,8 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
           </select>
         </label>
         <label>
-          Baseline run
+          {' '}
+          {tr('Baseline run')}{' '}
           <select
             value={base?.run.id ?? ''}
             onChange={(e) =>
@@ -84,7 +89,7 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
               })
             }
           >
-            {!base && <option value="">Saved baseline unavailable — choose a run</option>}
+            {!base && <option value=""> {tr('Saved baseline unavailable — choose a run')} </option>}
             {candidates.map(({ run }) => (
               <option key={run.id} value={run.id}>
                 {run.manifest?.taskSpec.title} · {run.id.slice(0, 8)}
@@ -95,12 +100,17 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
       </div>
       <p className="comparison-note" role="status">
         {base
-          ? 'Baseline saved per experiment and metric in this browser. Showing the latest 20 runs plus the baseline when older.'
-          : 'The saved baseline has no available reading. Choose another run explicitly to compare.'}
+          ? tr(
+              'Baseline saved per experiment and metric in this browser. Showing the latest 20 runs plus the baseline when older.',
+            )
+          : tr(
+              'The saved baseline has no available reading. Choose another run explicitly to compare.',
+            )}
       </p>
       <div className="delta-legend">
-        Absolute change from baseline{selected.unit ? ' · ' + selected.unit : ''} · same dataset
-        version and step
+        {' '}
+        {tr('Absolute change from baseline')} {selected.unit ? ' · ' + selected.unit : ''}{' '}
+        {tr('· same dataset version and step')}{' '}
       </div>
       <div className="delta-list">
         {changes.map(({ run, point, reason, delta }) => {
@@ -112,7 +122,8 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
               <div className="delta-run">
                 <b>{run.manifest?.taskSpec.title}</b>
                 <code>
-                  {run.id.slice(0, 8)} · {point ? 'step ' + point.step : run.state}
+                  {run.id.slice(0, 8)} ·{' '}
+                  {point ? tr('step') + ' ' + point.step : uiMessage(run.state)}
                 </code>
               </div>
               <div className="delta-value">
@@ -132,14 +143,13 @@ export function ExperimentCompare({ runs, artifacts }: { runs: Run[]; artifacts:
               </div>
               <div className="delta-note">
                 {run.id === base?.run.id || delta === null
-                  ? reason
+                  ? uiMessage(reason)
                   : (delta > 0 ? '+' : '') + format(delta)}
               </div>
               {params.length > 0 && (
                 <details className="parameter-changes">
                   <summary>
-                    {params.length} configuration{' '}
-                    {params.length === 1 ? 'difference' : 'differences'}
+                    {tr('{count} configuration differences', { count: params.length })}
                   </summary>
                   <ul>
                     {params.map((p) => (

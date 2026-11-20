@@ -13,6 +13,7 @@ export interface AgentConfig {
   prompt: string;
   providerSessionId?: string;
   model?: string;
+  reasoningEffort?: import('../shared/models.ts').ReasoningEffort;
   gpu?: string | null;
   signal: AbortSignal;
   onPid?: (pid: number) => void;
@@ -119,6 +120,7 @@ export class CodexAdapter implements AgentAdapter {
       approvalPolicy: 'never',
       networkAccessEnabled: false,
       ...(c.model ? { model: c.model } : {}),
+      ...(c.reasoningEffort ? { modelReasoningEffort: c.reasoningEffort } : {}),
     };
     const thread = c.providerSessionId
       ? sdk.resumeThread(c.providerSessionId, options)

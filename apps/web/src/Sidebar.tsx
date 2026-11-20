@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.ts';
 import {
   Layers,
   Shield,
@@ -46,26 +47,28 @@ export function Sidebar({
           <Layers size={21} />
         </div>
         <div>
-          Agent Workspace<small>PERSONAL CONTROL CENTER</small>
+          {' '}
+          {tr('Agent Workspace')} <small> {tr('PERSONAL CONTROL CENTER')} </small>
         </div>
       </div>
       <div className="workspace-chip">
         <span className="avatar">W</span>
         <span>
-          Personal workspace<small>Local-first · v0.8</small>
+          {' '}
+          {tr('Personal workspace')} <small> {tr('Local-first · v0.8')} </small>
         </span>
         <Shield size={14} />
       </div>
-      <nav aria-label="Main navigation">
+      <nav aria-label={tr('Main navigation')}>
         {(
           [
-            ['focus', Zap, 'Focus inbox'],
-            ['project', FolderGit2, 'Projects'],
-            ['experiments', FlaskConical, 'Experiments'],
-            ['compute', Server, 'Compute nodes'],
-            ['dashboard', LayoutDashboard, 'Overview'],
-            ['sessions', MessagesSquare, 'All sessions'],
-            ['activity', Activity, 'Activity'],
+            ['focus', Zap, tr('Focus inbox')],
+            ['project', FolderGit2, tr('Projects')],
+            ['experiments', FlaskConical, tr('Experiments')],
+            ['compute', Server, tr('Compute nodes')],
+            ['dashboard', LayoutDashboard, tr('Overview')],
+            ['sessions', MessagesSquare, tr('All sessions')],
+            ['activity', Activity, tr('Activity')],
           ] as const
         ).map(([id, Icon, label]) => (
           <button
@@ -85,8 +88,8 @@ export function Sidebar({
         ))}
       </nav>
       <div className="nav-section">
-        <span>PROJECTS</span>
-        <button aria-label="Import project" title="Import project" onClick={onImport}>
+        <span> {tr('PROJECTS')} </span>
+        <button aria-label={tr('Import project')} title={tr('Import project')} onClick={onImport}>
           <Plus size={16} />
         </button>
       </div>
@@ -121,9 +124,8 @@ export function Sidebar({
           ))}
         {!projects.length && (
           <p className="nav-empty">
-            Import a Git repository
-            <br />
-            to start your first project.
+            {' '}
+            {tr('Import a Git repository')} <br /> {tr('to start your first project.')}{' '}
           </p>
         )}
       </div>
@@ -131,13 +133,12 @@ export function Sidebar({
         <div className="local-status">
           <span className={`connection-dot ${connected ? 'online' : ''}`} />
           <span>
-            {connected ? 'Control plane online' : 'Reconnecting…'}
-            <small>127.0.0.1 · local connection</small>
+            {connected ? tr('Control plane online') : tr('Reconnecting…')}
+            <small> {tr('127.0.0.1 · local connection')} </small>
           </span>
         </div>
         <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-          <Settings size={17} />
-          Settings & providers
+          <Settings size={17} /> {tr('Settings & providers')}{' '}
         </button>
       </div>
     </aside>

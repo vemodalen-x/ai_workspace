@@ -12,6 +12,9 @@ import { z } from 'zod';
 import { Orchestrator } from '../../../packages/orchestration/service.ts';
 import { taskInput, type StoredEvent } from '../../../packages/shared/index.ts';
 import { redact } from '../../../packages/agent-adapters/process.ts';
+import { modelCatalog } from '../../../packages/agent-adapters/models.ts';
+import { reasoningEffortSchema } from '../../../packages/shared/models.ts';
+import { taskExecutionSummary } from '../../../packages/orchestration/execution-summary.ts';
 
 const projectInput = z.object({
   name: z.string().trim().min(1).max(100),
@@ -23,6 +26,7 @@ const runInput = z.object({
   prompt: z.string().max(40000).optional(),
   sessionId: z.string().uuid().optional(),
   model: z.string().max(200).optional(),
+  reasoningEffort: reasoningEffortSchema.optional(),
   allowReal: z.boolean().default(false),
   allowValidation: z.boolean().default(false),
 });
@@ -89,6 +93,7 @@ export async function createApp(
       return { ok: true };
     }),
   );
+  app.get('/api/models', async () => modelCatalog());
   app.get('/api/assistant', async () => service.snapshot().briefing);
   app.get('/api/events', async (req) => {
     const query = z
@@ -190,6 +195,12 @@ export async function createApp(
   app.delete<{ Params: { id: string } }>('/api/tasks/:id', async (req) =>
     service.serial(async () => service.deleteTask(req.params.id)),
   );
+  app.get<{ Params: { id: string } }>('/api/tasks/:id/summary', async (req) => {
+    const query = z
+      .object({ history: z.enum(['true', 'false']).default('false') })
+      .parse(req.query);
+    return taskExecutionSummary(service.store, req.params.id, query.history === 'true');
+  });
   app.post<{ Params: { id: string } }>('/api/tasks/:id/runs', async (req) =>
     service.serial(async () => service.enqueue(req.params.id, runInput.parse(req.body))),
   );

@@ -1,3 +1,4 @@
+import { t as tr, uiMessage } from './i18n.ts';
 import { usePreference } from './preferences.ts';
 import { useEffect, useState } from 'react';
 import { NodeHistory } from './NodeHistory.tsx';
@@ -6,7 +7,7 @@ import { Plus, RefreshCw } from 'lucide-react';
 import type { Snapshot, Task } from '../../../packages/shared/index.ts';
 import { telemetryFresh } from '../../../packages/shared/sample-time.ts';
 const number = (v: number | null | undefined, unit = '') =>
-  v == null ? 'Unavailable' : `${v.toFixed(1)}${unit}`;
+  v == null ? tr('Unavailable') : `${v.toFixed(1)}${unit}`;
 export function Compute({
   data,
   onAdd,
@@ -45,21 +46,21 @@ export function Compute({
     <>
       <div className="page-heading">
         <div>
-          <h1>Compute fleet</h1>
+          <h1> {tr('Compute fleet')} </h1>
           <p>
-            {fresh.length} / {data.nodes.length} nodes with fresh telemetry · {gpuCount} observed
-            GPUs on fresh nodes
+            {fresh.length} / {data.nodes.length} {tr('nodes with fresh telemetry ·')} {gpuCount}{' '}
+            {tr('observed GPUs on fresh nodes')}{' '}
           </p>
         </div>
         <button className="primary" onClick={onAdd}>
-          <Plus size={15} />
-          Add SSH node
+          <Plus size={15} /> {tr('Add SSH node')}{' '}
         </button>
       </div>
       <label className="fleet-filter">
-        Find server
+        {' '}
+        {tr('Find server')}{' '}
         <input
-          placeholder="Name or SSH alias"
+          placeholder={tr('Name or SSH alias')}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
@@ -70,7 +71,7 @@ export function Compute({
         nodeIds={new Set(matches.map((n) => n.id))}
         inspect={inspect}
       />
-      <h2 className="server-detail-heading">Server details</h2>
+      <h2 className="server-detail-heading"> {tr('Server details')} </h2>
       <div className="fleet-list">
         {matches.map((n) => {
           const m = data.metrics[n.id];
@@ -88,26 +89,25 @@ export function Compute({
                   <h3>
                     {n.name}{' '}
                     <span className={`badge ${status === 'live' ? 'running' : 'blocked'}`}>
-                      {status}
+                      {uiMessage(status)}
                     </span>
                   </h3>
                   <small>
-                    {n.kind === 'local' ? 'Local host' : `SSH · ${n.sshAlias}`} ·{' '}
+                    {n.kind === 'local' ? tr('Local host') : `SSH · ${n.sshAlias}`} ·{' '}
                     {m?.receivedAt
-                      ? `Received ${new Date(m.receivedAt).toLocaleTimeString()}`
-                      : 'No current sample'}
+                      ? tr('Received {time}', { time: new Date(m.receivedAt).toLocaleTimeString() })
+                      : tr('No current sample')}
                   </small>
                 </div>
                 <button className="secondary small" onClick={() => onRefresh(n.id)}>
-                  <RefreshCw size={13} />
-                  Refresh
+                  <RefreshCw size={13} /> {tr('Refresh')}{' '}
                 </button>
               </div>
               {status !== 'live' && (
                 <p role="status">
                   {m
-                    ? 'Last observed values below; not live capacity.'
-                    : 'No current telemetry. Historical samples may still be available.'}
+                    ? tr('Last observed values below; not live capacity.')
+                    : tr('No current telemetry. Historical samples may still be available.')}
                 </p>
               )}
               {n.telemetryError && <p role="alert">{n.telemetryError}</p>}
@@ -119,17 +119,20 @@ export function Compute({
                   RAM <b>{number(m ? m.ramUsedMb / 1024 : null, ' GiB')}</b>
                 </span>
                 <span>
-                  Disk free <b>{number(m?.disk?.freeGb, ' GB')}</b>
+                  {' '}
+                  {tr('Disk free')} <b>{number(m?.disk?.freeGb, ' GB')}</b>
                 </span>
                 <span>
-                  Network RX/TX{' '}
+                  {' '}
+                  {tr('Network RX/TX')}{' '}
                   <b>
                     {number(m?.network ? m.network.rxBytesSec / 1024 : null)} /{' '}
                     {number(m?.network ? m.network.txBytesSec / 1024 : null)} KiB/s
                   </b>
                 </span>
                 <span>
-                  Reserved{' '}
+                  {' '}
+                  {tr('Reserved')}{' '}
                   <b>
                     {reservations.reduce((s, r) => s + r.cpu, 0)} / {n.cpu} CPU ·{' '}
                     {number(reservations.reduce((s, r) => s + r.ramMb, 0) / 1024)} /{' '}
@@ -146,7 +149,11 @@ export function Compute({
                   const experiment = trial?.experiment ?? run?.manifest?.taskSpec.experiment;
                   return (
                     <div key={r.id}>
-                      {trial && <b>{trial.title} · command trial</b>}
+                      {trial && (
+                        <b>
+                          {trial.title} {tr('· command trial')}{' '}
+                        </b>
+                      )}
                       {task && (
                         <button className="secondary small" onClick={() => onTask(task)}>
                           {task.title}
@@ -154,19 +161,26 @@ export function Compute({
                       )}
                       <small>
                         {experiment
-                          ? `${experiment.group} · seed ${experiment.seed ?? 'unset'} · ${experiment.datasetVersion || 'unversioned data'}`
-                          : 'No experiment specification'}{' '}
-                        · {r.quarantined ? 'QUARANTINED reservation' : 'Reserved'} · GPU{' '}
-                        {r.gpu ?? 'none'}
+                          ? tr('{group} · seed {seed} · {version}', {
+                              group: experiment.group,
+                              seed: experiment.seed ?? tr('unset'),
+                              version: experiment.datasetVersion || tr('unversioned data'),
+                            })
+                          : tr('No experiment specification')}{' '}
+                        · {r.quarantined ? tr('QUARANTINED reservation') : tr('Reserved')} · GPU{' '}
+                        {r.gpu ?? tr('none')}
                       </small>
                     </div>
                   );
                 })}
-                {!reservations.length && <small>No workspace reservations</small>}
+                {!reservations.length && <small> {tr('No workspace reservations')} </small>}
               </div>
               {Boolean(m?.processes.length) && (
                 <details>
-                  <summary>Tracked host processes ({m?.processes.length})</summary>
+                  <summary>
+                    {' '}
+                    {tr('Tracked host processes (')} {m?.processes.length})
+                  </summary>
                   {m?.processes.map((p) => (
                     <div key={p.pid} className="gpu-process">
                       PID {p.pid} · CPU {number(p.cpu, '%')} · RSS {number(p.ramMb, ' MiB')}
@@ -176,22 +190,30 @@ export function Compute({
               )}
               <details>
                 <summary>
-                  GPU compute processes ({m?.gpuProcesses?.length ?? 'Unavailable'})
+                  {' '}
+                  {tr('GPU compute processes (')} {m?.gpuProcesses?.length ?? tr('Unavailable')})
                 </summary>
-                <p>PID and GPU UUID only. This does not prove ownership by a workspace Run.</p>
+                <p>
+                  {' '}
+                  {tr(
+                    'PID and GPU UUID only. This does not prove ownership by a workspace Run.',
+                  )}{' '}
+                </p>
                 {m?.gpuProcesses?.slice(0, 100).map((p, i) => (
                   <div className="gpu-process" key={`${p.gpuId}-${p.pid}-${i}`}>
                     <code>{p.gpuId}</code> PID {p.pid} · {number(p.usedMb, ' MiB')}
                   </div>
                 ))}
-                {(m?.gpuProcesses?.length ?? 0) > 100 && <p>First 100 processes shown.</p>}
+                {(m?.gpuProcesses?.length ?? 0) > 100 && (
+                  <p> {tr('First 100 processes shown.')} </p>
+                )}
               </details>
               <button
                 className="secondary small"
                 aria-expanded={history?.nodeId === n.id}
                 onClick={() => setHistory(history?.nodeId === n.id ? null : { nodeId: n.id })}
               >
-                {history?.nodeId === n.id ? 'Hide history' : 'Show history'}
+                {history?.nodeId === n.id ? tr('Hide history') : tr('Show history')}
               </button>
               {history?.nodeId === n.id && (
                 <div id={'history-' + n.id} tabIndex={-1}>
@@ -206,7 +228,7 @@ export function Compute({
           );
         })}
       </div>
-      {!matches.length && <p>No servers match this filter.</p>}
+      {!matches.length && <p> {tr('No servers match this filter.')} </p>}
     </>
   );
 }

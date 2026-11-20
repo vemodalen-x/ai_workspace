@@ -1,3 +1,4 @@
+import { t as tr, errorText, uiMessage } from './i18n.ts';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square, Terminal } from 'lucide-react';
@@ -63,10 +64,10 @@ export function CommandTrials({
     }
   }
   return (
-    <section className="surface fleet-node trial-panel" aria-label="Local command trials">
+    <section className="surface fleet-node trial-panel" aria-label={tr('Local command trials')}>
       <div className="visual-section-heading">
         <h2>
-          <Terminal size={16} /> Command trials
+          <Terminal size={16} /> {tr('Command trials')}{' '}
         </h2>
         <button
           className="secondary"
@@ -76,7 +77,7 @@ export function CommandTrials({
             setCreating(true);
           }}
         >
-          <Plus size={15} /> New trial
+          <Plus size={15} /> {tr('New trial')}{' '}
         </button>
       </div>
       {creating && (
@@ -97,7 +98,8 @@ export function CommandTrials({
         <>
           <div className="experiment-filters">
             <label>
-              Command trial
+              {' '}
+              {tr('Command trial')}{' '}
               <select
                 value={trial.id}
                 onChange={(e) => {
@@ -114,16 +116,17 @@ export function CommandTrials({
               </select>
             </label>
             <label>
-              Execution attempt
+              {' '}
+              {tr('Execution attempt')}{' '}
               <select
                 value={attempt?.id ?? ''}
                 disabled={!attempt}
                 onChange={(e) => setAttemptId(e.target.value)}
               >
-                {!attempt && <option value="">No attempts</option>}
+                {!attempt && <option value=""> {tr('No attempts')} </option>}
                 {attempts.map((a, i) => (
                   <option key={a.id} value={a.id}>
-                    #{attempts.length - i} · {a.state} · {a.id.slice(0, 8)}
+                    #{attempts.length - i} · {uiMessage(a.state)} · {a.id.slice(0, 8)}
                   </option>
                 ))}
               </select>
@@ -142,12 +145,13 @@ export function CommandTrials({
               }}
             >
               <Play size={14} />
-              {latest ? 'Retry trial' : 'Run trial'}
+              {latest ? tr('Retry trial') : tr('Run trial')}
             </button>
           </div>
           <details>
             <summary>
-              Frozen inputs · {trial.commit.slice(0, 10)} · {trial.allocation.gpu ?? 'CPU'}
+              {' '}
+              {tr('Frozen inputs ·')} {trial.commit.slice(0, 10)} · {trial.allocation.gpu ?? 'CPU'}
             </summary>
             <pre>
               {JSON.stringify(
@@ -166,15 +170,20 @@ export function CommandTrials({
             <>
               <div className="trial-attempt">
                 <Badge state={attempt.state} />
-                {attempt.exitCode !== undefined && <span>Exit {attempt.exitCode}</span>}
-                {attempt.reason && <span>{attempt.reason}</span>}
+                {attempt.exitCode !== undefined && (
+                  <span>
+                    {' '}
+                    {tr('Exit')} {attempt.exitCode}
+                  </span>
+                )}
+                {attempt.reason && <span>{uiMessage(attempt.reason)}</span>}
                 {['queued', 'starting', 'running'].includes(attempt.state) && (
                   <button
                     className="secondary small"
                     disabled={busy}
                     onClick={() => void action(`/attempts/${attempt.id}/cancel`, {})}
                   >
-                    <Square size={12} /> Cancel attempt
+                    <Square size={12} /> {tr('Cancel attempt')}{' '}
                   </button>
                 )}
                 {attempt.state === 'orphaned' && (
@@ -182,13 +191,14 @@ export function CommandTrials({
                     className="secondary small"
                     onClick={() => setConfirm({ trial, key: '', orphan: attempt.id })}
                   >
-                    Reconcile attempt
+                    {' '}
+                    {tr('Reconcile attempt')}{' '}
                   </button>
                 )}
               </div>
               {attempt.workspace && (
                 <details>
-                  <summary>Attempt worktree</summary>
+                  <summary> {tr('Attempt worktree')} </summary>
                   <code>{attempt.workspace}</code>
                 </details>
               )}
@@ -205,16 +215,16 @@ export function CommandTrials({
       ) : (
         <p>
           {!data.projects.length
-            ? 'Import a Git project to create a trial.'
+            ? tr('Import a Git project to create a trial.')
             : trials.length !== data.trials.length
-              ? 'No trials match this filter.'
-              : 'Create a trial to run a local command against a fixed Git commit.'}
+              ? tr('No trials match this filter.')
+              : tr('Create a trial to run a local command against a fixed Git commit.')}
         </p>
       )}
-      {error && !confirm && <p role="alert">{error}</p>}
+      {error && !confirm && <p role="alert">{errorText(error)}</p>}
       {confirm && (
         <ModalFrame
-          title={confirm.orphan ? 'Release trial reservation' : 'Run local command'}
+          title={confirm.orphan ? tr('Release trial reservation') : tr('Run local command')}
           close={() => {
             if (!busy) setConfirm(undefined);
           }}
@@ -232,17 +242,23 @@ export function CommandTrials({
           >
             <b>{confirm.trial.title}</b>
             <code>{JSON.stringify(confirm.trial.argv)}</code>
-            <small>Commit {confirm.trial.commit}</small>
             <small>
-              Local · {confirm.trial.allocation.gpu ?? 'CPU'} · {confirm.trial.allocation.cpu} CPU ·{' '}
-              {confirm.trial.allocation.ramMb} MiB RAM · {confirm.trial.allocation.timeoutSec}s
+              {' '}
+              {tr('Commit')} {confirm.trial.commit}
+            </small>
+            <small>
+              {' '}
+              {tr('Local ·')} {confirm.trial.allocation.gpu ?? 'CPU'} ·{' '}
+              {confirm.trial.allocation.cpu} CPU · {confirm.trial.allocation.ramMb} MiB RAM ·{' '}
+              {confirm.trial.allocation.timeoutSec}s
             </small>
             {confirm.orphan && (
               <label>
-                <input type="checkbox" required /> I verified the local process has stopped.
+                <input type="checkbox" required />{' '}
+                {tr('I verified the local process has stopped.')}{' '}
               </label>
             )}
-            {error && <p role="alert">{error}</p>}
+            {error && <p role="alert">{errorText(error)}</p>}
             <div className="modal-footer">
               <button
                 type="button"
@@ -250,10 +266,11 @@ export function CommandTrials({
                 onClick={() => setConfirm(undefined)}
                 disabled={busy}
               >
-                Cancel
+                {' '}
+                {tr('Cancel')}{' '}
               </button>
               <button className="primary" disabled={busy}>
-                {confirm.orphan ? 'Release reservation' : 'Queue attempt'}
+                {confirm.orphan ? tr('Release reservation') : tr('Queue attempt')}
               </button>
             </div>
           </form>

@@ -51,6 +51,7 @@ In Compute nodes → Add SSH node:
 - Name: GPU workstation
 - SSH alias: gpu-workstation
 - Worker path: `/srv/ai-agent-workspace/worker-bootstrap.mjs`
+- Node executable path (optional): absolute path to Node 24 when `node` is absent from the non-interactive SSH PATH
 - CPU/RAM scheduling capacities: operator-selected soft reservation capacity
 
 Use Compute nodes → Refresh, or wait for the automatic probe. A successful response marks the node online. Assign a task to this node and supply its Remote repository path, for example `/srv/projects/cv-agent`. Launch explicitly. Each native provider must be authenticated on that worker.

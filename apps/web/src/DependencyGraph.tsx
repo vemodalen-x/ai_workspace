@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.ts';
 import { ReactFlow, Background, Controls, MarkerType } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { Task } from '../../../packages/shared/index.ts';
@@ -59,6 +60,19 @@ export default function DependencyGraph({
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        ariaLabelConfig={{
+          'controls.ariaLabel': tr('Graph controls'),
+          'controls.zoomIn.ariaLabel': tr('Zoom In'),
+          'controls.zoomOut.ariaLabel': tr('Zoom Out'),
+          'controls.fitView.ariaLabel': tr('Fit View'),
+          'node.a11yDescription.default': tr(
+            'Select a node with Enter or Space. Use arrow keys to move it. Escape cancels.',
+          ),
+          'node.a11yDescription.keyboardDisabled': tr(
+            'Select a node with Enter or Space. Escape cancels.',
+          ),
+          'edge.a11yDescription.default': tr('Select an edge with Enter or Space. Escape cancels.'),
+        }}
         colorMode="dark"
         fitView
         nodesDraggable={false}

@@ -1,3 +1,4 @@
+import { t as tr, errorText } from './i18n.ts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api.ts';
@@ -16,19 +17,27 @@ export function NodeHistory({ nodeId, initialGpu }: { nodeId: string; initialGpu
   );
   const selected = gpuId || gpus[0]?.id;
   return (
-    <section className="telemetry-history" aria-label="Node telemetry history">
-      <b>Last 120 retained samples</b>
+    <section className="telemetry-history" aria-label={tr('Node telemetry history')}>
+      <b> {tr('Last 120 retained samples')} </b>
 
-      {query.isLoading && <p role="status">Loading history…</p>}
-      {query.isError && <p role="alert">History unavailable: {query.error.message}</p>}
-      <HistoryChart samples={samples} label="CPU utilization" value={(m) => m.cpuPercent} />
+      {query.isLoading && <p role="status"> {tr('Loading history…')} </p>}
+      {query.isError && (
+        <p role="alert">
+          {' '}
+          {tr('History unavailable:')} {errorText(query.error.message ?? '')}
+        </p>
+      )}
+      <HistoryChart samples={samples} label={tr('CPU utilization')} value={(m) => m.cpuPercent} />
       {gpus.length > 0 && (
         <>
           <label>
-            GPU history
+            {' '}
+            {tr('GPU history')}{' '}
             <select value={selected} onChange={(e) => setGpuId(e.target.value)}>
               {gpuId && !gpus.some((g) => g.id === gpuId) && (
-                <option value={gpuId}>{gpuId} · no retained readings</option>
+                <option value={gpuId}>
+                  {gpuId} {tr('· no retained readings')}{' '}
+                </option>
               )}
               {gpus.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -39,12 +48,12 @@ export function NodeHistory({ nodeId, initialGpu }: { nodeId: string; initialGpu
           </label>
           <HistoryChart
             samples={samples}
-            label="GPU utilization"
+            label={tr('GPU utilization')}
             value={(m) => m.gpus?.find((g) => g.id === selected)?.utilization ?? null}
           />
           <HistoryChart
             samples={samples}
-            label="VRAM used"
+            label={tr('VRAM used')}
             value={(m) => {
               const g = m.gpus?.find((g) => g.id === selected);
               return g?.usedMb != null && g.totalMb ? (g.usedMb / g.totalMb) * 100 : null;

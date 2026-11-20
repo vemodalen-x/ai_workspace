@@ -1,3 +1,5 @@
+import { LanguageSelector } from './LanguageSelector.tsx';
+import { t as tr } from './i18n.ts';
 import type { ReactNode } from 'react';
 import { ChevronRight, Search, Monitor, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { Sidebar } from './Sidebar.tsx';
@@ -58,7 +60,8 @@ export function AppShell({
           document.getElementById('workspace-main')?.focus();
         }}
       >
-        Skip to workspace
+        {' '}
+        {tr('Skip to workspace')}{' '}
       </a>
       <Sidebar
         {...{
@@ -78,43 +81,44 @@ export function AppShell({
       <section className="shell">
         <header className="topbar">
           <div className="breadcrumb">
-            <span>Workspace</span>
+            <span> {tr('Workspace')} </span>
             <ChevronRight size={13} />
             <b>
               {view === 'project'
-                ? (project?.name ?? 'Projects')
+                ? (project?.name ?? tr('Projects'))
                 : (
                     {
-                      focus: 'Focus inbox',
-                      dashboard: 'Overview',
-                      sessions: 'Sessions',
-                      compute: 'Compute nodes',
-                      experiments: 'Experiments',
-                      activity: 'Activity',
-                      settings: 'Settings',
+                      focus: tr('Focus inbox'),
+                      dashboard: tr('Overview'),
+                      sessions: tr('Sessions'),
+                      compute: tr('Compute nodes'),
+                      experiments: tr('Experiments'),
+                      activity: tr('Activity'),
+                      settings: tr('Settings'),
                     } as const
                   )[view]}
             </b>
           </div>
           <div className="top-tools">
+            <LanguageSelector />
             <label className="search">
               <Search size={14} />
               <input
-                aria-label="Search workspace"
-                placeholder="Search this view…"
+                data-workspace-search
+                aria-label={tr('Search workspace')}
+                placeholder={tr('Search this view…')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
               <kbd>⌘ K</kbd>
             </label>
             <span className="local-pill">
-              <Monitor size={13} />
-              LOCAL
+              <Monitor size={13} /> {tr('LOCAL')}{' '}
             </span>
             <button
               hidden={!['project', 'sessions'].includes(view)}
               className="icon-button"
-              aria-label="Toggle inspector"
+              aria-label={tr('Toggle inspector')}
               onClick={() => setInspector(!inspector)}
             >
               {inspector ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
@@ -130,7 +134,7 @@ export function AppShell({
               <div
                 className="resize-handle"
                 role="separator"
-                aria-label="Resize inspector"
+                aria-label={tr('Resize inspector')}
                 aria-orientation="vertical"
                 aria-valuenow={width}
                 tabIndex={0}
@@ -161,10 +165,11 @@ export function AppShell({
         <footer className="statusbar">
           <span>
             <span className={`connection-dot ${connected ? 'online' : ''}`} />
-            {connected ? 'Event stream connected' : 'Reconnecting event stream'}
+            {connected ? tr('Event stream connected') : tr('Reconnecting event stream')}
           </span>
           <span>
-            {runningCount} running <i>·</i> {queuedCount} queued <i>·</i> SQLite persistent storage
+            {runningCount} {tr('running')} <i>·</i> {queuedCount} {tr('queued')} <i>·</i>{' '}
+            {tr('SQLite persistent storage')}{' '}
           </span>
           <span>
             CPU {metric?.cpuPercent?.toFixed(0) ?? '—'}% <i>·</i> RAM{' '}

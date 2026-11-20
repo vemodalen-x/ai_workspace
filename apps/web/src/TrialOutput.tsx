@@ -1,3 +1,4 @@
+import { t as tr, errorText, uiMessage } from './i18n.ts';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { AttemptOutput, Trial, TrialAttempt } from '../../../packages/shared/trials.ts';
@@ -37,9 +38,14 @@ function Curve({
   return (
     <figure className="trial-curve">
       <figcaption>
-        {primary[0].name} {primary[0].unit} · steps {minX}–{maxX} · range {minY} to {maxY}
+        {primary[0].name} {primary[0].unit} {tr('· steps')} {minX}–{maxX} {tr('· range')} {minY}{' '}
+        {tr('to')} {maxY}
       </figcaption>
-      <svg viewBox="0 0 600 120" role="img" aria-label={`${primary[0].name} by step`}>
+      <svg
+        viewBox="0 0 600 120"
+        role="img"
+        aria-label={tr('{metric} by step', { metric: primary[0].name })}
+      >
         <path d="M0 5 H600 M0 60 H600 M0 115 H600" stroke="var(--border)" strokeDasharray="3 4" />
         {[reference, primary].map((points, i) => (
           <g key={i} fill={i ? '#75dab9' : '#efbe75'}>
@@ -59,7 +65,13 @@ function Curve({
             />
             {points.map((p) => (
               <circle key={p.step} cx={x(p.step)} cy={y(p.value)} r={2.3}>
-                <title>{`Step ${p.step}: ${p.value} ${p.unit}`}</title>
+                <title>
+                  {tr('Step {step}: {value} {unit}', {
+                    step: p.step,
+                    value: p.value,
+                    unit: p.unit,
+                  })}
+                </title>
               </circle>
             ))}
           </g>
@@ -97,8 +109,8 @@ export function TrialOutput({
   );
   const reference = choices.find((a) => a.id === referenceId);
   const other = useOutput(reference);
-  if (output.isError) return <p role="alert">{output.error.message}</p>;
-  if (!output.data) return <p role="status">Loading attempt output…</p>;
+  if (output.isError) return <p role="alert">{errorText(output.error.message ?? '')}</p>;
+  if (!output.data) return <p role="status"> {tr('Loading attempt output…')} </p>;
   const { metrics, log, logTruncated, ignored } = output.data;
   const keys = new Map(metrics.map((m) => [seriesKey(m), m]));
   const key = keys.has(metric) ? metric : keys.keys().next().value;
@@ -110,7 +122,8 @@ export function TrialOutput({
         <>
           <div className="experiment-filters">
             <label>
-              Reported metric
+              {' '}
+              {tr('Reported metric')}{' '}
               <select value={key} onChange={(e) => setMetric(e.target.value)}>
                 {[...keys].map(([k, m]) => (
                   <option key={k} value={k}>
@@ -120,13 +133,14 @@ export function TrialOutput({
               </select>
             </label>
             <label>
-              Compare attempt
+              {' '}
+              {tr('Compare attempt')}{' '}
               <select value={reference?.id ?? ''} onChange={(e) => setReferenceId(e.target.value)}>
-                <option value="">This attempt only</option>
+                <option value=""> {tr('This attempt only')} </option>
                 {choices.map((a) => (
                   <option key={a.id} value={a.id}>
                     {comparable.find((t) => t.id === a.trialId)?.title} · {a.id.slice(0, 8)} ·{' '}
-                    {a.state}
+                    {uiMessage(a.state)}
                   </option>
                 ))}
               </select>
@@ -134,25 +148,33 @@ export function TrialOutput({
           </div>
           <Curve primary={points} reference={compared} />
           <p className="comparison-note">
-            Current · {points.at(-1)!.value} at step {points.at(-1)!.step}
+            {' '}
+            {tr('Current ·')} {points.at(-1)!.value} {tr('at step')} {points.at(-1)!.step}
             {reference &&
               (other.isError
-                ? ' · Comparison unavailable'
+                ? tr(' · Comparison unavailable')
                 : !other.data
-                  ? ' · Loading comparison…'
+                  ? tr(' · Loading comparison…')
                   : compared.length
-                    ? ` · Reference (amber) · ${compared.at(-1)!.value} at step ${compared.at(-1)!.step}`
-                    : ' · No matching metric and unit in reference')}
+                    ? tr(' · Reference (amber) · {value} at step {step}', {
+                        value: compared.at(-1)!.value,
+                        step: compared.at(-1)!.step,
+                      })
+                    : tr(' · No matching metric and unit in reference'))}
           </p>
         </>
       ) : (
-        <p>No metrics reported.</p>
+        <p> {tr('No metrics reported.')} </p>
       )}
-      {ignored > 0 && <small>{ignored} invalid or excess metric readings omitted.</small>}
+      {ignored > 0 && (
+        <small>
+          {ignored} {tr('invalid or excess metric readings omitted.')}{' '}
+        </small>
+      )}
       <details>
-        <summary>Command output</summary>
-        <pre>{log || 'No output yet.'}</pre>
-        {logTruncated && <small>Showing the first 256 KiB of output.</small>}
+        <summary> {tr('Command output')} </summary>
+        <pre>{log || tr('No output yet.')}</pre>
+        {logTruncated && <small> {tr('Showing the first 256 KiB of output.')} </small>}
       </details>
     </div>
   );
