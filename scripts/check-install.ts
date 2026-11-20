@@ -154,14 +154,11 @@ try {
       return row;
     }, 150000);
     const events = await api<StoredEvent[]>('events?limit=2000');
-    assert.ok(
-      events.some(
-        (event) =>
-          event.runId === run.id &&
-          event.type === 'MessageDelta' &&
-          String(event.data.text).includes('WORKSPACE_OK'),
-      ),
-    );
+    const statement = events
+      .filter((event) => event.runId === run.id && event.type === 'MessageDelta')
+      .map((event) => String(event.data.text))
+      .join('');
+    assert.ok(statement.includes('WORKSPACE_OK'));
     console.log('One native Codex read-only turn completed with WORKSPACE_OK.');
   }
 

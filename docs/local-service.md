@@ -24,7 +24,7 @@ PATH=/absolute/node/bin:/home/user/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 ## 数据库锁
 
-systemd 使用 `flock` 对 `service.guard` 加进程生命周期锁，再运行 `scripts/service-start.mjs`。原始服务器的 `server.lock` 仍用于拒绝第二个未受管实例。
+systemd 使用 `flock` 对 `service.guard` 加进程生命周期锁，再运行 `scripts/service-start.mjs`。服务器使用本机 socket / named pipe 保证单实例，`server.lock` 保存 PID 和认证 key；启动器同时兼容早期版本的 PID / startedAt 锁格式。
 
 启动器只归档确认已死亡 PID 的旧锁，不删除数据库，也不自动处理不明内容、符号链接或活进程的锁。`.service-owner.json` 记录启动时的 Linux boot ID，系统重启后可以识别旧启动的锁，避免无关进程重用 PID 导致阻塞。旧锁保存在 `server.lock.recovered-*` 供审计。服务应始终通过 unit 启动，不能绕开 `flock` 并发运行启动器。
 
