@@ -902,5 +902,12 @@
   "Loading folders…": "Loading folders…",
   "Folders are on the machine running Workspace.": "Folders are on the machine running Workspace.",
   "Filter folders": "Filter folders",
-  "No matching folders": "No matching folders"
+  "No matching folders": "No matching folders",
+  "Local-first · v{version}": "Local-first · v{version}",
+  "Connect your first repository": "Connect your first repository",
+  "Choose an existing local folder to view history, or a Git repository with an initial commit to run tasks.": "Choose an existing local folder to view history, or a Git repository with an initial commit to run tasks.",
+  "Drafts wait for your review before execution. To run your own script, open command trials.": "Drafts wait for your review before execution. To run your own script, open command trials.",
+  "Open command trials": "Open command trials",
+  "Export attempt JSON": "Export attempt JSON",
+  "On Windows, open “Sign in to Codex” from the Start menu. Source installs can use npm run workspace -- login codex after building.": "On Windows, open “Sign in to Codex” from the Start menu. Source installs can use npm run workspace -- login codex after building."
 }

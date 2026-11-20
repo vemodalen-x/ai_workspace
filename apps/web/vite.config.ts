@@ -4,7 +4,11 @@ import { resolve } from 'node:path';
 export default defineConfig({
   root: resolve('apps/web'),
   plugins: [react()],
-  build: { outDir: resolve('dist/web'), emptyOutDir: true },
+  build: {
+    outDir: resolve('dist/web'),
+    emptyOutDir: true,
+    license: { fileName: 'third-party-licenses.md' },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,

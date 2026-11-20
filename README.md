@@ -4,11 +4,23 @@ Run coding agents in separate Git worktrees, review the commits they produce, an
 
 在本机调度 Coding Agent，审查它们的改动，也可以绕过 Agent 直接运行自己的实验脚本。每次尝试记录代码提交、命令、配置和指标，方便回看同一个实验是怎么跑出来的。
 
-**Try the sample in your browser.** Switch from `val_mIoU` to `throughput` in the quantization example. The INT8 run and the FP16 baseline share a dataset version. The larger-batch run uses a different version, so you can see exactly why its delta is withheld. [Open the interactive demo](https://vemodalen-x.github.io/ai_workspace/)
+## Install on your computer · 本机安装
 
-[![Interactive sample comparing INT8 and FP16 runs, including a mismatched dataset version](docs/images/experiment-comparison.png)](https://vemodalen-x.github.io/ai_workspace/)
+| Platform                 | Download                                                                                                                                            | Launch                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Windows x64              | [Download the installer (.exe)](https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-windows-x64-setup.exe)      | Open **AI Agent Workspace** from Start                                                 |
+| Debian / Ubuntu x86-64   | [Download the Debian package (.deb)](https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-linux-x64.deb)         | `sudo apt install ./ai-agent-workspace-linux-x64.deb`, then `ai-agent-workspace start` |
+| Other glibc Linux x86-64 | [Download the portable archive (.tar.gz)](https://github.com/vemodalen-x/ai_workspace/releases/latest/download/ai-agent-workspace-linux-x64.tar.gz) | Extract and run `./ai-agent-workspace/ai-agent-workspace start`                        |
 
-## 快速启动
+Requires Git 2.38+. The installers include Node.js and the Codex CLI. Import a repository with an initial commit, choose **Experiments → New trial**, and enter a command from that repository. The app records its exit code, log and metrics. **Export attempt JSON** saves that evidence with its frozen Git commit and parameters. Coding tasks can use a signed-in Codex or Claude account. [Installation, sign-in, data locations and upgrades](docs/local-install.md) · [Releases and checksums](https://github.com/vemodalen-x/ai_workspace/releases/latest)
+
+个人开发者可以直接安装。打开工作台后点 **Import project** 导入自己的仓库。运行本机脚本无需模型账号。要使用 Codex，可从 Windows 开始菜单选择 **Sign in to Codex**，或在 Linux 终端运行 `ai-agent-workspace login codex`。停止、升级和重启后，可以从同一个数据目录继续工作。
+
+[![Compare two runs against the same dataset and inspect their recorded metrics](docs/images/experiment-comparison.png)](https://vemodalen-x.github.io/ai_workspace/preview/)
+
+The [interactive preview](https://vemodalen-x.github.io/ai_workspace/preview/) lets you explore a published sample comparison in a browser.
+
+## 从源码开发
 
 **Local quick start** requires Node.js 24+, npm and Git 2.38+. Windows 可使用 Git for Windows，SSH 节点需要 OpenSSH 客户端。各平台与 Provider 的验证范围见[测试记录](docs/verification.md)。
 
@@ -123,7 +135,7 @@ Compute fleet 按节点和 GPU UUID 展示真实可获取的利用率、显存�
 ## v0.2：个人开发工作助手
 
 - **Focus inbox**：先看需要恢复、审批、排障、澄清和审查的事项，每条有原因和可执行入口。
-- **Quick capture**：一句话捕获为 Mock draft，不启动 Agent；补齐目标和验收条件，再显式授权执行。
+- **Quick capture** 可用一句话保存任务草稿，优先选择已登录的真实 Provider。补齐目标和验收条件后再确认执行。
 - **Project context**：保存项目工作约定。调度启动时生成交接包，包含依赖结果和上次执行状态；在 Artifacts 查看实际发送的 `execution-brief.txt`。
 - **Result evidence**：分别显示执行状态、验证命令结果、精确提交对应的批准合并。命令通过不等于全部验收标准通过。
 - **七天回顾**：真实执行次数与验证覆盖情况，不估造效率或节省时长。
@@ -251,9 +263,9 @@ Remove-Item Env:RUN_REAL_PROVIDER_TESTS
 
 ## 数据与恢复
 
-默认状态目录 `.workspace/`，用 `WORKSPACE_DATA_DIR` 改为其他绝对路径。含 `workspace.db`、WAL、worktrees、`server.lock`。备份前停止服务；需同时备份用户源仓库的 `.git`、数据库和 worktree 目录，移动后使用 Git 正式的 worktree repair 流程修复绝对路径。不要只复制 SQLite 就认为包含了代码。
+安装版使用当前用户的本机数据目录，源码模式默认使用 `.workspace/`。用 `WORKSPACE_DATA_DIR` 可指定已有目录的绝对路径。备份前停止服务，保留全部数据目录和用户源仓库（含 `.git`）。路径变化时，使用 Git 的 worktree repair 流程修复关联。详见[安装和数据说明](docs/local-install.md)。
 
-异常退出时 `server.lock` 故意保留。**先检查记录的 PID 和它的子进程确实已经停止**，再删除这个锁文件启动服务。启动后旧 running/starting Run 标记 orphaned，配额 quarantine；UI Reconcile execution 明确确认进程已停后才释放。不会因为 PID 存在就自动 kill，避免 PID 复用误杀。
+Windows 和 Linux 上，操作系统在控制进程退出后释放实例锁。重新启动时工作台恢复数据库，并把上次仍在执行的任务标为 orphaned。检查本机或远端子进程后，可在 UI 中选择 Reconcile execution 并确认释放预留资源。升级前请先停止旧版服务。
 
 API token 只在服务器与浏览器内存中，不写入 localStorage。后端限定回环地址，校验 Host/Origin，没有通用远程终端接口。数据库包含代码日志/提示文本，应按私有开发资料保护。已知凭证模式会做最佳努力脱敏，但任意程序输出不能保证完全不含敏感内容。
 

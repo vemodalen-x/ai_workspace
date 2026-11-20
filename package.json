@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-workspace",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -16,6 +16,8 @@
     "dev:web": "vite --config apps/web/vite.config.ts",
     "build": "tsc --noEmit && vite build --config apps/web/vite.config.ts && tsup --config tsup.config.ts",
     "start": "node dist/server/src/index.js",
+    "workspace": "node dist/launcher/src/index.js",
+    "package:stage": "node --import tsx scripts/stage-distribution.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",

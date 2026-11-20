@@ -1,0 +1,60 @@
+name: Build and test installers
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.2'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package:stage
+      - name: Build Windows setup and install as the current user
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $stage = (Resolve-Path artifacts/stage).Path
+          $out = (New-Item -ItemType Directory -Path artifacts/release).FullName
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          & $compiler /Qp "/DProductVersion=$version" "/DStagePath=$stage" "/DOutputPath=$out" packaging/windows.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $install = Join-Path $env:RUNNER_TEMP 'Installed AI Workspace'
+          $setup = Start-Process -FilePath "$out\ai-agent-workspace-windows-x64-setup.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$install`"" -WindowStyle Hidden -Wait -PassThru
+          if ($setup.ExitCode) { exit $setup.ExitCode }
+          node --import tsx scripts/check-install.ts "$install"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $remove = Start-Process -FilePath "$install\unins000.exe" -ArgumentList '/VERYSILENT /NORESTART' -WindowStyle Hidden -Wait -PassThru
+          exit $remove.ExitCode
+      - name: Build and install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          bash packaging/build-linux.sh artifacts/stage artifacts/release
+          sudo dpkg -i artifacts/release/ai-agent-workspace-linux-x64.deb
+          ai-agent-workspace --version
+          node --import tsx scripts/check-install.ts /opt/ai-agent-workspace
+          sudo dpkg -r ai-agent-workspace
+          mkdir "$RUNNER_TEMP/extracted package"
+          tar -xzf artifacts/release/ai-agent-workspace-linux-x64.tar.gz -C "$RUNNER_TEMP/extracted package"
+          node --import tsx scripts/check-install.ts "$RUNNER_TEMP/extracted package/ai-agent-workspace"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: artifacts/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

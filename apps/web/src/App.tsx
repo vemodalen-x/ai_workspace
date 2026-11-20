@@ -53,6 +53,11 @@ import { ResultEvidence } from './ResultEvidence.tsx';
 import { api, useWorkspace } from './api.ts';
 import type { Task, Project, Session, Run, Approval } from '../../../packages/shared/index.ts';
 import './styles.css';
+import type { ProviderStatus } from '../../../packages/shared/index.ts';
+
+function preferredProvider(providers: ProviderStatus[]) {
+  return providers.find((p) => p.id !== 'mock' && p.authenticated)?.id ?? 'codex';
+}
 
 const ExperimentsPage = lazy(async () => ({
   default: (await import('./ExperimentsPage.tsx')).ExperimentsPage,
@@ -642,6 +647,11 @@ export function App() {
         {view === 'focus' && (
           <Focus
             data={data}
+            provider={preferredProvider(data.providers)}
+            importProject={() => setModal({ kind: 'project' })}
+            openExperiments={(projectId) =>
+              navigate({ view: 'experiments', projectId, search: '' })
+            }
             search={search}
             refresh={refresh}
             notify={notify}
@@ -1604,9 +1614,18 @@ export function App() {
                   </dl>
                   {p.id !== 'mock' && (
                     <div className="setup-code">
-                      <small> {tr('Run in your own terminal to authenticate:')} </small>
-                      <code>{p.id === 'codex' ? 'npx codex login' : 'npx claude auth login'}</code>
-                      <p> {tr('The application does not read or copy credential files.')} </p>
+                      <small>{tr('Run in your own terminal to authenticate:')}</small>
+                      <code>
+                        {p.id === 'codex' ? 'ai-agent-workspace login codex' : 'claude auth login'}
+                      </code>
+                      {p.id === 'codex' && (
+                        <p>
+                          {tr(
+                            'On Windows, open “Sign in to Codex” from the Start menu. Source installs can use npm run workspace -- login codex after building.',
+                          )}
+                        </p>
+                      )}
+                      <p>{tr('The application does not read or copy credential files.')}</p>
                     </div>
                   )}
                 </section>
@@ -1801,12 +1820,15 @@ export function App() {
                 </label>
                 <div className="form-grid">
                   <label>
-                    {' '}
-                    {tr('Provider')}{' '}
-                    <select name="provider" defaultValue={modal.task?.provider ?? 'mock'}>
-                      <option value="mock"> {tr('Mock Agent · deterministic test')} </option>
+                    {tr('Provider')}
+                    <select
+                      name="provider"
+                      aria-label={tr('Provider')}
+                      defaultValue={modal.task?.provider ?? preferredProvider(data.providers)}
+                    >
                       <option value="codex">OpenAI Codex</option>
                       <option value="claude">Claude Code</option>
+                      <option value="mock">{tr('Mock Agent · deterministic test')}</option>
                     </select>
                   </label>
                   <label>

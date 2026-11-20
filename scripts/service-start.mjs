@@ -31,12 +31,17 @@ export async function prepareServiceLock(dataDir, currentBoot = undefined) {
   }
   if (!stat.isFile()) throw new Error('Refusing non-regular server.lock');
   const lock = await readJson(lockPath);
-  if (!Number.isSafeInteger(lock?.pid) || lock.pid <= 0 || typeof lock.startedAt !== 'string')
+  const modern = typeof lock?.key === 'string' && /^[a-f0-9]{64}$/.test(lock.key);
+  if (
+    !Number.isSafeInteger(lock?.pid) ||
+    lock.pid <= 0 ||
+    (!modern && typeof lock.startedAt !== 'string')
+  )
     throw new Error('Invalid server.lock; inspect it manually');
   const owner = await readJson(resolve(dataDir, '.service-owner.json'));
   const previousBoot =
     owner?.pid === lock.pid &&
-    owner.startedAt === lock.startedAt &&
+    (modern ? owner.key === lock.key : owner.startedAt === lock.startedAt) &&
     typeof owner.bootId === 'string' &&
     owner.bootId !== (currentBoot ?? (await bootId()));
   if (!previousBoot) {

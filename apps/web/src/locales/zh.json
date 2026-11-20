@@ -902,5 +902,12 @@
   "Loading folders…": "正在加载文件夹…",
   "Folders are on the machine running Workspace.": "这里显示运行 Workspace 的机器上的文件夹。",
   "Filter folders": "筛选文件夹",
-  "No matching folders": "没有匹配的文件夹"
+  "No matching folders": "没有匹配的文件夹",
+  "Local-first · v{version}": "本地优先 · v{version}",
+  "Connect your first repository": "连接第一个项目",
+  "Choose an existing local folder to view history, or a Git repository with an initial commit to run tasks.": "选择已有本地文件夹查看历史，或选择有初始提交的 Git 仓库运行任务。",
+  "Drafts wait for your review before execution. To run your own script, open command trials.": "草稿等待审查后才会执行。运行自己的脚本请打开命令试验。",
+  "Open command trials": "打开命令试验",
+  "Export attempt JSON": "导出试验 JSON",
+  "On Windows, open “Sign in to Codex” from the Start menu. Source installs can use npm run workspace -- login codex after building.": "Windows 用户可从开始菜单打开“Sign in to Codex”。源码安装可在构建后运行 npm run workspace -- login codex。"
 }

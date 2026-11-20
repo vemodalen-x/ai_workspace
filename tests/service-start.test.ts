@@ -136,3 +136,28 @@ test(
     }
   },
 );
+
+test('service recovery accepts current launcher lock keys and refuses a live owner', async () => {
+  const dir = await directory();
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']);
+  const closed = once(child, 'exit');
+  child.kill('SIGKILL');
+  await closed;
+  try {
+    const key = 'a'.repeat(64);
+    await writeFile(join(dir, 'server.lock'), JSON.stringify({ pid: process.pid, key }));
+    await assert.rejects(prepareServiceLock(dir, 'current-boot'), /still alive/);
+    await writeFile(join(dir, 'server.lock'), JSON.stringify({ pid: child.pid, key }));
+    await prepareServiceLock(dir, 'current-boot');
+    await assert.rejects(access(join(dir, 'server.lock')));
+    await writeFile(join(dir, 'server.lock'), JSON.stringify({ pid: process.pid, key }));
+    await writeFile(
+      join(dir, '.service-owner.json'),
+      JSON.stringify({ pid: process.pid, key, bootId: 'previous-boot' }),
+    );
+    await prepareServiceLock(dir, 'current-boot');
+    await assert.rejects(access(join(dir, 'server.lock')));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

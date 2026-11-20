@@ -17,6 +17,7 @@ import { redact } from '../../../packages/agent-adapters/process.ts';
 import { modelCatalog } from '../../../packages/agent-adapters/models.ts';
 import { reasoningEffortSchema } from '../../../packages/shared/models.ts';
 import { taskExecutionSummary } from '../../../packages/orchestration/execution-summary.ts';
+import manifest from '../../../package.json' with { type: 'json' };
 
 const projectInput = z.object({
   name: z.string().trim().min(1).max(100),
@@ -33,7 +34,7 @@ const runInput = z.object({
   allowValidation: z.boolean().default(false),
 });
 const same = (a: string, b: string) =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export async function createApp(
   service: Orchestrator,
   options: { token?: string; serveWeb?: boolean; allowedOrigins?: string[] } = {},
@@ -54,7 +55,7 @@ export async function createApp(
       return reply.code(403).send({ error: 'Untrusted Origin' });
     if (req.headers['sec-fetch-site'] === 'cross-site')
       return reply.code(403).send({ error: 'Cross-site requests rejected' });
-    if (req.url.startsWith('/api/') && !req.url.startsWith('/api/bootstrap')) {
+    if (req.url.startsWith('/api/') && req.url.split('?')[0] !== '/api/bootstrap') {
       const protocol = String(req.headers['sec-websocket-protocol'] ?? '')
         .split(',')
         .map((p) => p.trim())
@@ -77,7 +78,7 @@ export async function createApp(
     const status = e instanceof z.ZodError ? 400 : /not found/.test(e.message) ? 404 : 409;
     reply.code(status).send(redact({ error: e.message.slice(0, 4000) }));
   });
-  app.get('/api/bootstrap', async () => ({ token, version: '0.8.0' }));
+  app.get('/api/bootstrap', async () => ({ token, version: manifest.version }));
   app.get('/api/snapshot', async () => service.snapshot());
   const native = new NativeHistoryReader();
   const registeredProject = (id: string) => {

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { Project, Task } from '../../../packages/shared/index.ts';
 import type { WorkspaceView } from './navigation.ts';
+import manifest from '../../../package.json' with { type: 'json' };
 export function Sidebar({
   view,
   setView,
@@ -57,8 +58,8 @@ export function Sidebar({
       <div className="workspace-chip">
         <span className="avatar">W</span>
         <span>
-          {' '}
-          {tr('Personal workspace')} <small> {tr('Local-first · v0.8')} </small>
+          {tr('Personal workspace')}
+          <small>{tr('Local-first · v{version}', { version: manifest.version })}</small>
         </span>
         <Shield size={14} />
       </div>
