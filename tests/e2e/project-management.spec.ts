@@ -158,3 +158,51 @@ test('both providers and configuration statuses display in Chinese and English w
     }
   }
 });
+
+test('folder filtering cannot submit the project and failed browsing clears the previous listing', async ({
+  page,
+}) => {
+  let imports = 0;
+  await page.route('**/api/projects', async (route) => {
+    if (route.request().method() === 'POST') {
+      imports++;
+      await route.fulfill({ status: 400, json: { error: 'Unexpected project import' } });
+    } else await route.continue();
+  });
+  await page.route('**/api/local-folders?*', async (route) => {
+    const path = new URL(route.request().url()).searchParams.get('path');
+    if (path === '/fixture')
+      await route.fulfill({
+        json: {
+          path: '/fixture',
+          name: 'fixture',
+          parent: '/',
+          folders: [{ name: 'child', path: '/fixture/child' }],
+          truncated: false,
+        },
+      });
+    else await route.fulfill({ status: 404, json: { error: 'Local folder does not exist' } });
+  });
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'Language / 语言' }).last().selectOption('en');
+  await page.getByRole('button', { name: 'Import project', exact: true }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Load local project' });
+  const path = dialog.getByLabel('Repository path', { exact: true });
+  await path.fill('/fixture');
+  // The inferred name must be available before blur or Enter submission.
+  await expect(dialog.getByLabel('Project name', { exact: true })).toHaveValue('fixture');
+  await dialog.getByRole('button', { name: 'Browse local folders', exact: true }).click();
+  const filter = dialog.getByLabel('Filter folders', { exact: true });
+  await filter.fill('child');
+  await filter.press('Enter');
+  await expect(dialog.getByRole('button', { name: 'child', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  expect(imports).toBe(0);
+  await dialog.getByLabel('Project name', { exact: true }).fill('Custom name');
+  await path.fill('/missing');
+  await expect(dialog.getByLabel('Project name', { exact: true })).toHaveValue('Custom name');
+  await dialog.getByRole('button', { name: 'Browse local folders', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Use this folder', exact: true })).toHaveCount(0);
+  await expect(path).toHaveValue('/missing');
+});

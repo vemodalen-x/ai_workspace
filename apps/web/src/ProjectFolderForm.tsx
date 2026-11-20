@@ -20,6 +20,7 @@ export function ProjectFolderForm() {
   async function browse(target?: string) {
     setLoading(true);
     setError('');
+    setListing(undefined);
     try {
       const data = await api<FolderListing>(
         '/local-folders' + (target ? '?path=' + encodeURIComponent(target) : ''),
@@ -58,10 +59,11 @@ export function ProjectFolderForm() {
           name="repoPath"
           required
           value={path}
-          onChange={(e) => setPath(e.target.value)}
-          onBlur={() => {
+          onChange={(e) => {
+            const nextPath = e.target.value;
+            setPath(nextPath);
             if (!nameEdited)
-              setName(path.trim().split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 100) ?? '');
+              setName(nextPath.trim().split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 100) ?? '');
           }}
           placeholder="/home/you/projects/app"
         />
@@ -102,7 +104,13 @@ export function ProjectFolderForm() {
           </div>
           <label>
             {t('Filter folders')}
-            <input value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.preventDefault();
+              }}
+            />
           </label>
           <div className="folder-list" aria-busy={loading}>
             {listing.folders
