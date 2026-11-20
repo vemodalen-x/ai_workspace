@@ -32,6 +32,41 @@ test('capacity board uses node-scoped UUID and index reservations and withholds 
   const offline = markup.slice(markup.indexOf('Evaluation server'));
   assert.match(offline, /Unavailable/);
 });
+test('capacity board groups GPUs by server and retains servers without GPU readings', () => {
+  const data = {
+    ...fleet,
+    nodes: [
+      ...fleet.nodes,
+      {
+        id: 'cpu',
+        name: 'CPU server',
+        kind: 'ssh' as const,
+        status: 'unknown' as const,
+        cpu: 4,
+        ramMb: 8192,
+      },
+    ],
+  };
+  const render = (nodeIds: Set<string>) =>
+    renderToStaticMarkup(
+      createElement(GpuCapacity, { data, nodeIds, asOf: exampleTime, inspect: () => {} }),
+    );
+  const markup = render(new Set(['cpu', 'eval', 'train']));
+  const groups = [...markup.matchAll(/<section class="capacity-server"[\s\S]*?<\/section>/g)].map(
+    (match) => match[0],
+  );
+  assert.equal(groups.length, 3);
+  assert.match(groups[0], /CPU server/);
+  assert.match(groups[0], /No GPU readings available for this server/);
+  assert.match(groups[1], /Evaluation server/);
+  assert.match(groups[1], /GPU-sample-c/);
+  assert.doesNotMatch(groups[1], /GPU-sample-a|GPU-sample-b/);
+  assert.match(groups[2], /GPU-sample-a/);
+  assert.match(groups[2], /GPU-sample-b/);
+  assert.doesNotMatch(groups[2], /GPU-sample-c/);
+  assert.match(groups[2], /Inspect history for Training server GPU 0/);
+  assert.doesNotMatch(render(new Set(['cpu'])), /GPU-sample|Evaluation server|Training server/);
+});
 test('comparison gates metric deltas by dataset, version, unit, project and step; raw readings remain visible', () => {
   const [candidate, mismatch, base] = runs,
     from = reportedMetrics(base, artifacts)[0],

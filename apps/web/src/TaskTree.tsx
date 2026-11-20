@@ -1,5 +1,6 @@
+import { t as tr } from './i18n.ts';
 import type { ReactNode } from 'react';
-import { ChevronDown, Play, MoreHorizontal } from 'lucide-react';
+import { ChevronDown, Play, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Badge } from './Badge.tsx';
 import type { Task, ComputeNode } from '../../../packages/shared/index.ts';
 const short = (id: string) => id.slice(0, 8);
@@ -13,6 +14,7 @@ export function TaskTree({
   onMove,
   onMenu,
   onLaunch,
+  onDelete,
 }: {
   tasks: Task[];
   taskId: string;
@@ -23,6 +25,7 @@ export function TaskTree({
   onMove: (id: string, parentId: string) => void;
   onMenu: (context: { task: Task; x: number; y: number }) => void;
   onLaunch: (task: Task) => void;
+  onDelete: (task: Task) => void;
 }) {
   function treeRows(parentId: string | null, depth = 0): ReactNode[] {
     return tasks
@@ -73,8 +76,8 @@ export function TaskTree({
                   <b>{t.title}</b>
                   <small>
                     {t.integration
-                      ? 'Integration workspace'
-                      : `${t.dependencies.length} dependencies`}{' '}
+                      ? tr('Integration workspace')
+                      : tr('{count} dependencies', { count: t.dependencies.length })}{' '}
                     · {short(t.id)}
                   </small>
                 </div>
@@ -85,12 +88,12 @@ export function TaskTree({
                 {t.provider === 'mock' ? 'Mock' : t.provider === 'claude' ? 'Claude Code' : 'Codex'}
               </span>
               <span className="node-label">
-                {nodes.find((n) => n.id === t.nodeId)?.name ?? 'Unknown'}
+                {nodes.find((n) => n.id === t.nodeId)?.name ?? tr('Unknown')}
               </span>
               <span className="row-actions">
                 <button
-                  aria-label={`Run ${t.title}`}
-                  title="Start session"
+                  aria-label={tr('Run {title}', { title: t.title })}
+                  title={tr('Run / re-run with model in a new session')}
                   disabled={activeTaskIds.has(t.id)}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -100,7 +103,18 @@ export function TaskTree({
                   <Play size={14} />
                 </button>
                 <button
-                  aria-label={`Actions for ${t.title}`}
+                  aria-label={tr('Delete {title}', { title: t.title })}
+                  title={tr('Delete task')}
+                  disabled={activeTaskIds.has(t.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(t);
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+                <button
+                  aria-label={tr('Actions for {title}', { title: t.title })}
                   onClick={(e) => {
                     e.stopPropagation();
                     const rect = e.currentTarget.getBoundingClientRect();

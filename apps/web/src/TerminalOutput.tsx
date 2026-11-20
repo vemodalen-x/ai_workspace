@@ -1,3 +1,4 @@
+import { t as tr } from './i18n.ts';
 import { useRef, useEffect } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -23,7 +24,6 @@ export default function TerminalOutput({ events }: { events: StoredEvent[] }) {
     fit.fit();
     terminal.current = t;
     cursor.current = 0;
-    t.writeln('AI Agent Workspace · captured tool output (read-only)\r\n');
     const obs = new ResizeObserver(() => fit.fit());
     obs.observe(ref.current);
     return () => {
@@ -38,7 +38,7 @@ export default function TerminalOutput({ events }: { events: StoredEvent[] }) {
     for (const e of events) {
       if (e.seq <= cursor.current) continue;
       cursor.current = e.seq;
-      if (e.type === 'ToolStarted') t.writeln(`> ${String(e.data.name ?? 'Tool call')}`);
+      if (e.type === 'ToolStarted') t.writeln(`> ${String(e.data.name ?? tr('Tool call'))}`);
       if (e.type === 'ToolCompleted' && e.data.output !== undefined)
         t.writeln(
           typeof e.data.output === 'string' ? e.data.output : JSON.stringify(e.data.output),
@@ -46,5 +46,10 @@ export default function TerminalOutput({ events }: { events: StoredEvent[] }) {
       if (e.type === 'Log') t.writeln(String(e.data.text));
     }
   }, [events]);
-  return <div className="terminal" ref={ref} />;
+  return (
+    <>
+      <p>{tr('AI Agent Workspace · captured tool output (read-only)')}</p>
+      <div className="terminal" ref={ref} />
+    </>
+  );
 }

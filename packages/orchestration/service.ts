@@ -203,7 +203,8 @@ export class Orchestrator {
     if (
       this.store.all('tasks').some((t) => t.projectId === id) ||
       this.store.all('sessions').some((s) => s.projectId === id) ||
-      this.store.all('trials').some((t) => t.projectId === id)
+      this.store.all('trials').some((t) => t.projectId === id) ||
+      this.store.all('externalSessions').some((s) => s.projectId === id)
     )
       throw new Error('Project has history; archive it to preserve records');
     this.store.tx(() => {
@@ -269,6 +270,7 @@ export class Orchestrator {
       prompt?: string;
       sessionId?: string;
       model?: string;
+      reasoningEffort?: Session['reasoningEffort'];
       allowReal?: boolean;
       allowValidation?: boolean;
     },
@@ -281,6 +283,8 @@ export class Orchestrator {
     const task = this.store.get('tasks', taskId),
       project = this.store.get('projects', task.projectId);
     if (project.archived) throw new Error('Project archived');
+    if (options.reasoningEffort && task.provider !== 'codex')
+      throw new Error('Reasoning effort is supported only for Codex');
     if (this.store.all('runs').some((r) => r.taskId === taskId && activeStates.includes(r.state)))
       throw new Error('Task already has an active run');
     if (task.provider !== 'mock' && !options.allowReal)
@@ -309,6 +313,12 @@ export class Orchestrator {
         throw new Error('Session is closed or does not match task/provider/node');
       const w = this.store.get('workspaces', session.workspaceId);
       if (w.cleaned) throw new Error('Workspace was cleaned');
+      if (
+        (options.model !== undefined && options.model !== session.model) ||
+        (options.reasoningEffort !== undefined &&
+          options.reasoningEffort !== session.reasoningEffort)
+      )
+        throw new Error('Start a new session to change model or reasoning effort');
     } else {
       const id = randomUUID();
       session = {
@@ -319,6 +329,7 @@ export class Orchestrator {
         provider: task.provider,
         nodeId: task.nodeId,
         model: options.model,
+        reasoningEffort: options.reasoningEffort,
         createdAt: now(),
         closed: false,
       };
@@ -519,6 +530,7 @@ export class Orchestrator {
         prompt: brief,
         providerSessionId: session.providerSessionId,
         model: session.model,
+        reasoningEffort: session.reasoningEffort,
         gpu: this.store.get('reservations', id).gpu,
         signal: abort.signal,
         onPid: (pid: number) => this.store.put('runs', { ...this.store.get('runs', id), pid }),

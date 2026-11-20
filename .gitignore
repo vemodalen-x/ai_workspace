@@ -8,3 +8,5 @@ test-results/
 artifacts/
 
 fleet.local.json
+
+.idea/

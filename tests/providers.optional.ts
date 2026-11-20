@@ -19,11 +19,12 @@ for (const provider of ['codex', 'claude'] as const)
         const r = svc.enqueue(t.id, { requestKey: key(), allowReal: true });
         await settle(svc, [r.id], 130000);
         assert.equal(svc.store.get('runs', r.id).state, 'completed');
-        assert.ok(
-          svc.store
-            .events()
-            .some((e) => e.type === 'MessageDelta' && String(e.data.text).includes('WORKSPACE_OK')),
-        );
+        const text = svc.store
+          .events()
+          .filter((e) => e.runId === r.id && e.type === 'MessageDelta')
+          .map((e) => String(e.data.text))
+          .join('');
+        assert.ok(text.includes('WORKSPACE_OK'));
       } finally {
         await svc.shutdown();
       }

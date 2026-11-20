@@ -1,4 +1,9 @@
+import { LanguageSelector } from './LanguageSelector.tsx';
+import { t as tr, useLocale, errorText, uiMessage } from './i18n.ts';
+import { ExternalSessions } from './ExternalSessions.tsx';
 import { TaskTree } from './TaskTree.tsx';
+import { ModelSelector } from './ModelSelector.tsx';
+import { ExecutionSummary } from './ExecutionSummary.tsx';
 import { AppShell } from './AppShell.tsx';
 import { Empty, MetricBar, Field, ModalFrame, Timeline } from './UiPrimitives.tsx';
 import { usePreference } from './preferences.ts';
@@ -60,15 +65,16 @@ type Modal =
   | { kind: 'node' }
   | {
       kind: 'confirm';
-      title: string;
-      detail: string;
-      label: string;
+      title: () => string;
+      detail: () => string;
+      label: () => string;
       action: () => Promise<unknown>;
     };
 const fmt = (date: string) =>
   new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const short = (id?: string) => id?.slice(0, 8) ?? '—';
 export function App() {
+  useLocale();
   const { data, error, isLoading, events, connected, refresh } = useWorkspace();
   const { route, navigate } = useWorkspaceRoute();
   const { view, projectId, taskId, sessionId, treeMode, tab, search } = route;
@@ -122,7 +128,7 @@ export function App() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        document.querySelector<HTMLInputElement>('[aria-label="Search workspace"]')?.focus();
+        document.querySelector<HTMLInputElement>('[data-workspace-search]')?.focus();
       }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
         e.preventDefault();
@@ -164,7 +170,12 @@ export function App() {
     });
     setInspector(true);
   }
-  function confirm(title: string, detail: string, label: string, fn: () => Promise<unknown>) {
+  function confirm(
+    title: () => string,
+    detail: () => string,
+    label: () => string,
+    fn: () => Promise<unknown>,
+  ) {
     setModal({ kind: 'confirm', title, detail, label, action: fn });
   }
   async function submitModal(e: FormEvent<HTMLFormElement>) {
@@ -181,7 +192,7 @@ export function App() {
               repoPath: f.get('repoPath'),
               concurrency: Number(f.get('concurrency')),
             }),
-          'Project imported',
+          tr('Project imported'),
         );
         navigate({ projectId: p!.id, taskId: '', sessionId: '', view: 'project', search: '' });
       }
@@ -214,7 +225,7 @@ export function App() {
               modal.task ? 'PATCH' : 'POST',
               body,
             ),
-          'Task saved',
+          tr('Task saved'),
         );
         navigate({
           view: 'project',
@@ -232,11 +243,12 @@ export function App() {
               requestKey: crypto.randomUUID(),
               prompt: f.get('prompt'),
               model: f.get('model') || undefined,
+              reasoningEffort: f.get('reasoningEffort') || undefined,
               sessionId: modal.sessionId,
               allowReal: f.get('allowReal') === 'on',
               allowValidation: f.get('allowValidation') === 'on',
             }),
-          'Run queued',
+          tr('Run queued'),
         );
         navigate({
           sessionId: r!.sessionId,
@@ -254,12 +266,13 @@ export function App() {
               name: f.get('name'),
               sshAlias: f.get('sshAlias'),
               workerPath: f.get('workerPath'),
+              ...(f.get('nodePath') ? { nodePath: f.get('nodePath') } : {}),
               cpu: Number(f.get('cpu')),
               ramMb: Number(f.get('ramMb')),
             }),
-          'SSH node added. Probe it before execution.',
+          tr('SSH node added. Probe it before execution.'),
         );
-      if (modal.kind === 'confirm') await action(modal.action, 'Action completed');
+      if (modal.kind === 'confirm') await action(modal.action, tr('Action completed'));
       setModal(null);
     } catch (e) {
       notify((e as Error).message, true);
@@ -270,21 +283,24 @@ export function App() {
   if (isLoading)
     return (
       <div className="boot">
+        <LanguageSelector />
         <div className="brand-mark">
           <Layers />
         </div>
-        <h2>AI Agent Workspace</h2>
-        <p>Connecting to your local control plane…</p>
+        <h2> {tr('AI Agent Workspace')} </h2>
+        <p> {tr('Connecting to your local control plane…')} </p>
       </div>
     );
   if (error || !data)
     return (
       <div className="boot">
+        <LanguageSelector />
         <AlertCircle />
-        <h2>Local server unavailable</h2>
-        <p>{error?.message}</p>
+        <h2> {tr('Local server unavailable')} </h2>
+        <p>{errorText(error?.message ?? '')}</p>
         <button className="primary" onClick={() => void refresh()}>
-          Retry connection
+          {' '}
+          {tr('Retry connection')}{' '}
         </button>
       </div>
     );
@@ -327,73 +343,82 @@ export function App() {
         inspectorContent={
           <>
             <div className="inspector-heading">
-              <span>{task ? 'TASK INSPECTOR' : 'WORKSPACE INSPECTOR'}</span>
-              <button aria-label="Close inspector" onClick={() => setInspector(false)}>
+              <span>{task ? tr('TASK INSPECTOR') : tr('WORKSPACE INSPECTOR')}</span>
+              <button aria-label={tr('Close inspector')} onClick={() => setInspector(false)}>
                 <X size={15} />
               </button>
             </div>
             {task ? (
               <>
                 <div className="inspector-title">
-                  <span className="subtle">TASK · {short(task.id)}</span>
+                  <span className="subtle">
+                    {' '}
+                    {tr('TASK ·')} {short(task.id)}
+                  </span>
                   <h2>{task.title}</h2>
                   <Badge state={task.state} />
                 </div>
                 <div className="inspector-section">
-                  <h3>Execution</h3>
+                  <h3> {tr('Execution')} </h3>
                   <dl>
-                    <dt>Provider</dt>
+                    <dt> {tr('Provider')} </dt>
                     <dd>{task.provider}</dd>
-                    <dt>Node</dt>
+                    <dt> {tr('Node')} </dt>
                     <dd>{data.nodes.find((n) => n.id === task.nodeId)?.name}</dd>
-                    <dt>Priority</dt>
+                    <dt> {tr('Priority')} </dt>
                     <dd>{task.priority} / 100</dd>
-                    <dt>Dependencies</dt>
+                    <dt> {tr('Dependencies')} </dt>
                     <dd>
                       {task.dependencies.length
                         ? task.dependencies
                             .map((id) => tasks.find((t) => t.id === id)?.title)
                             .join(', ')
-                        : 'None'}
+                        : tr('None')}
                     </dd>
                   </dl>
                   <button
                     className="secondary full"
                     onClick={() => setModal({ kind: 'task', task })}
                   >
-                    Configure task
+                    {' '}
+                    {tr('Configure task')}{' '}
                   </button>
                 </div>
                 <div className="inspector-section">
                   <h3>
-                    Resource allocation <span>SOFT</span>
+                    {' '}
+                    {tr('Resource allocation')} <span> {tr('SOFT')} </span>
                   </h3>
                   <div className="allocation-grid">
                     <div>
                       <Cpu size={15} />
                       <strong>{task.allocation.cpu}</strong>
-                      <small>CPU cores</small>
+                      <small> {tr('CPU cores')} </small>
                     </div>
                     <div>
                       <MemoryStick size={15} />
                       <strong>{task.allocation.ramMb}</strong>
-                      <small>RAM · MB</small>
+                      <small> {tr('RAM · MB')} </small>
                     </div>
                   </div>
                   <dl>
-                    <dt>GPU device</dt>
-                    <dd>{task.allocation.gpu ?? 'None selected'}</dd>
-                    <dt>VRAM budget</dt>
-                    <dd>{task.allocation.vramMb} MB · soft</dd>
-                    <dt>Timeout</dt>
-                    <dd>{task.allocation.timeoutSec}s · enforced</dd>
+                    <dt> {tr('GPU device')} </dt>
+                    <dd>{task.allocation.gpu ?? tr('None selected')}</dd>
+                    <dt> {tr('VRAM budget')} </dt>
+                    <dd>
+                      {task.allocation.vramMb} {tr('MB · soft')}{' '}
+                    </dd>
+                    <dt> {tr('Timeout')} </dt>
+                    <dd>
+                      {task.allocation.timeoutSec} {tr('s · enforced')}{' '}
+                    </dd>
                   </dl>
                 </div>
                 {task.error && (
                   <div className="inspector-section">
                     <div className="error-card">
                       <AlertCircle size={16} />
-                      <p>{task.error}</p>
+                      <p>{errorText(task.error)}</p>
                     </div>
                   </div>
                 )}
@@ -403,9 +428,12 @@ export function App() {
                       className="warning full"
                       onClick={() =>
                         confirm(
-                          'Reconcile uncertain execution',
-                          'Inspect the execution node first. Confirm that this run and all child processes have stopped. This releases quarantined capacity; it does not claim the run succeeded.',
-                          'Confirm process stopped',
+                          () => tr('Reconcile uncertain execution'),
+                          () =>
+                            tr(
+                              'Inspect the execution node first. Confirm that this run and all child processes have stopped. This releases quarantined capacity; it does not claim the run succeeded.',
+                            ),
+                          () => tr('Confirm process stopped'),
                           () =>
                             api(`/runs/${run.id}/reconcile`, 'POST', {
                               confirmedStopped: true,
@@ -413,21 +441,22 @@ export function App() {
                         )
                       }
                     >
-                      Reconcile execution
+                      {' '}
+                      {tr('Reconcile execution')}{' '}
                     </button>
                   </div>
                 )}
                 {session && (
                   <div className="inspector-section">
-                    <h3>Git workspace</h3>
+                    <h3> {tr('Git workspace')} </h3>
                     <dl>
-                      <dt>Session</dt>
+                      <dt> {tr('Session')} </dt>
                       <dd>{short(session.id)}</dd>
-                      <dt>Branch</dt>
-                      <dd className="break">{workspace?.branch ?? 'Pending'}</dd>
-                      <dt>Base</dt>
+                      <dt> {tr('Branch')} </dt>
+                      <dd className="break">{workspace?.branch ?? tr('Pending')}</dd>
+                      <dt> {tr('Base')} </dt>
                       <dd>{short(workspace?.baseCommit)}</dd>
-                      <dt>Snapshot</dt>
+                      <dt> {tr('Snapshot')} </dt>
                       <dd>{short(workspace?.headCommit)}</dd>
                     </dl>
                     <div className="button-stack">
@@ -437,17 +466,19 @@ export function App() {
                           navigate({ view: 'sessions', tab: 'diff', search: '' });
                         }}
                       >
-                        <FileCode size={14} />
-                        Review changes
+                        <FileCode size={14} /> {tr('Review changes')}{' '}
                       </button>
                       {workspace && !workspace.cleaned && (
                         <button
                           className="text-button"
                           onClick={() =>
                             confirm(
-                              'Clean up worktree',
-                              'Remove only this managed, clean worktree. The branch and all recorded history will be retained. Uncommitted changes block cleanup.',
-                              'Clean up worktree',
+                              () => tr('Clean up worktree'),
+                              () =>
+                                tr(
+                                  'Remove only this managed, clean worktree. The branch and all recorded history will be retained. Uncommitted changes block cleanup.',
+                                ),
+                              () => tr('Clean up worktree'),
                               () =>
                                 api(`/sessions/${session.id}/cleanup`, 'POST', {
                                   confirmed: true,
@@ -455,7 +486,8 @@ export function App() {
                             )
                           }
                         >
-                          Clean up worktree
+                          {' '}
+                          {tr('Clean up worktree')}{' '}
                         </button>
                       )}
                     </div>
@@ -468,40 +500,44 @@ export function App() {
                   <div className="inspector-art">
                     <Network size={36} />
                   </div>
-                  <h2>Built for parallel work</h2>
+                  <h2> {tr('Built for parallel work')} </h2>
                   <p>
-                    Select a task or session to inspect its configuration, worktree, and execution.
+                    {' '}
+                    {tr(
+                      'Select a task or session to inspect its configuration, worktree, and execution.',
+                    )}{' '}
                   </p>
                 </div>
                 <div className="inspector-section">
-                  <h3>Execution policy</h3>
+                  <h3> {tr('Execution policy')} </h3>
                   <div className="policy-item">
                     <Check size={15} />
-                    <span>Isolated Git worktrees</span>
+                    <span> {tr('Isolated Git worktrees')} </span>
                   </div>
                   <div className="policy-item">
                     <Check size={15} />
-                    <span>Persistent event history</span>
+                    <span> {tr('Persistent event history')} </span>
                   </div>
                   <div className="policy-item">
                     <Check size={15} />
-                    <span>Explicit merge approval</span>
+                    <span> {tr('Explicit merge approval')} </span>
                   </div>
                   <div className="policy-item">
                     <Shield size={15} />
-                    <span>Loopback API + local authentication</span>
+                    <span> {tr('Loopback API + local authentication')} </span>
                   </div>
                 </div>
               </>
             )}
             <div className="inspector-section">
               <h3>
-                Pending approvals <span>{pending.length}</span>
+                {' '}
+                {tr('Pending approvals')} <span>{pending.length}</span>
               </h3>
               {pending.map((a) => (
                 <div className="approval-card" key={a.id}>
                   <GitMerge size={17} />
-                  <b>Merge reviewed changes</b>
+                  <b> {tr('Merge reviewed changes')} </b>
                   <small>
                     {data.projects.find((p) => p.id === a.projectId)?.name} ·{' '}
                     {
@@ -513,62 +549,73 @@ export function App() {
                   <small>
                     {short(a.source)} → {a.targetBranch} @ {short(a.target)}
                   </small>
-                  <p>Inspect the session diff. Approval applies only to these exact commits.</p>
+                  <p>
+                    {' '}
+                    {tr(
+                      'Inspect the session diff. Approval applies only to these exact commits.',
+                    )}{' '}
+                  </p>
                   <div className="button-group">
                     <button
                       className="primary small"
                       onClick={() =>
                         confirm(
-                          'Approve merge',
-                          `Integrate source ${a.source} into ${a.targetBranch} at ${a.target}? The server rejects stale approvals and dirty targets.`,
-                          'Approve and merge',
+                          () => tr('Approve merge'),
+                          () =>
+                            tr(
+                              'Integrate source {source} into {branch} at {target}? The server rejects stale approvals and dirty targets.',
+                              { source: a.source, branch: a.targetBranch, target: a.target },
+                            ),
+                          () => tr('Approve and merge'),
                           () => api(`/approvals/${a.id}`, 'POST', { approved: true }),
                         )
                       }
                     >
-                      Review approval
+                      {' '}
+                      {tr('Review approval')}{' '}
                     </button>
                     <button
                       className="secondary small"
                       onClick={() =>
                         safe(
                           () => api(`/approvals/${a.id}`, 'POST', { approved: false }),
-                          'Approval rejected',
+                          tr('Approval rejected'),
                         )
                       }
                     >
-                      Reject
+                      {' '}
+                      {tr('Reject')}{' '}
                     </button>
                   </div>
                 </div>
               ))}
-              {!pending.length && <p className="subtle">Nothing awaiting your review.</p>}
+              {!pending.length && <p className="subtle"> {tr('Nothing awaiting your review.')} </p>}
             </div>
             {data.approvals
               .filter((a) => a.state === 'applying')
               .map((a) => (
                 <div className="approval-card" key={a.id}>
-                  <b>Check merge outcome</b>
+                  <b> {tr('Check merge outcome')} </b>
                   <small>
                     {a.targetBranch} · {short(a.previewCommit)}
                   </small>
-                  <p>{a.error ?? 'Checking the target branch against the approved commit.'}</p>
+                  <p>{a.error ?? tr('Checking the target branch against the approved commit.')}</p>
                   <button
                     className="secondary small"
                     onClick={() =>
                       safe(
                         () => api(`/approvals/${a.id}/reconcile`, 'POST', {}),
-                        'Merge status checked',
+                        tr('Merge status checked'),
                       )
                     }
                   >
-                    Check target branch
+                    {' '}
+                    {tr('Check target branch')}{' '}
                   </button>
                 </div>
               ))}
             <div className="inspector-footer">
-              <Shield size={14} />
-              Local by default. Explicit by design.
+              <Shield size={14} /> {tr('Local by default. Explicit by design.')}{' '}
             </div>
           </>
         }
@@ -605,44 +652,43 @@ export function App() {
             <div className="page-heading">
               <div>
                 <div className="eyebrow">
-                  <span /> YOUR DEVELOPMENT CONTROL PLANE
+                  <span /> {tr('YOUR DEVELOPMENT CONTROL PLANE')}{' '}
                 </div>
-                <h1>Workspace overview</h1>
-                <p>A clear view of your agents, projects, and execution.</p>
+                <h1> {tr('Workspace overview')} </h1>
+                <p> {tr('A clear view of your agents, projects, and execution.')} </p>
               </div>
               <button className="primary" onClick={() => setModal({ kind: 'project' })}>
-                <Plus size={15} />
-                Import project
+                <Plus size={15} /> {tr('Import project')}{' '}
               </button>
             </div>
             <div className="stat-grid">
               {[
                 {
-                  label: 'Active projects',
+                  label: tr('Active projects'),
                   value: data.projects.filter((p) => !p.archived).length,
                   icon: FolderGit2,
-                  sub: 'Connected Git repositories',
+                  sub: tr('Connected Git repositories'),
                   color: 'blue',
                 },
                 {
-                  label: 'Running sessions',
+                  label: tr('Running sessions'),
                   value: running.length,
                   icon: MessagesSquare,
-                  sub: `${data.sessions.length} sessions in history`,
+                  sub: tr('{count} sessions in history', { count: data.sessions.length }),
                   color: 'green',
                 },
                 {
-                  label: 'Queued tasks',
+                  label: tr('Queued tasks'),
                   value: queued.length,
                   icon: Layers,
-                  sub: 'Waiting for dependencies or capacity',
+                  sub: tr('Waiting for dependencies or capacity'),
                   color: 'purple',
                 },
                 {
-                  label: 'Awaiting approval',
+                  label: tr('Awaiting approval'),
                   value: pending.length,
                   icon: Shield,
-                  sub: 'Reviewed commits, explicit consent',
+                  sub: tr('Reviewed commits, explicit consent'),
                   color: 'amber',
                 },
               ].map((s) => (
@@ -660,10 +706,12 @@ export function App() {
               <section className="surface projects-panel">
                 <div className="section-heading">
                   <h2>
-                    Projects <span>{data.projects.filter((p) => !p.archived).length}</span>
+                    {' '}
+                    {tr('Projects')} <span>{data.projects.filter((p) => !p.archived).length}</span>
                   </h2>
                   <button className="text-button" onClick={() => setView('project')}>
-                    View all <ArrowUpRight size={13} />
+                    {' '}
+                    {tr('View all')} <ArrowUpRight size={13} />
                   </button>
                 </div>
                 {data.projects
@@ -697,26 +745,27 @@ export function App() {
                             <GitBranch size={12} />
                             {p.baseBranch}
                             <span>·</span>
-                            {ts.length} tasks
+                            {ts.length} {tr('tasks')}{' '}
                           </p>
                           <div className="project-progress">
                             <i style={{ width: `${ts.length ? (done / ts.length) * 100 : 0}%` }} />
                           </div>
                           <small>
-                            {done} of {ts.length} executions completed · integration reviewed
-                            separately
+                            {done} {tr('of')} {ts.length}{' '}
+                            {tr('executions completed · integration reviewed separately')}{' '}
                           </small>
                         </div>
                       </button>
                     );
                   })}
                 {!data.projects.length && (
-                  <Empty title="Bring your repository">
+                  <Empty title={tr('Bring your repository')}>
                     <span>
-                      Import a local Git repository with an initial commit.
-                      <br />
+                      {' '}
+                      {tr('Import a local Git repository with an initial commit.')} <br />
                       <button className="text-button" onClick={() => setModal({ kind: 'project' })}>
-                        Import project <ArrowRight size={14} />
+                        {' '}
+                        {tr('Import project')} <ArrowRight size={14} />
                       </button>
                     </span>
                   </Empty>
@@ -724,7 +773,7 @@ export function App() {
               </section>
               <section className="surface">
                 <div className="section-heading">
-                  <h2>Local compute</h2>
+                  <h2> {tr('Local compute')} </h2>
                   <Badge state="online" />
                 </div>
                 <div className="compute-summary">
@@ -734,30 +783,36 @@ export function App() {
                     </div>
                     <div>
                       <h3>{data.nodes.find((n) => n.id === 'local')?.name}</h3>
-                      <small>Local execution node · real telemetry</small>
+                      <small> {tr('Local execution node · real telemetry')} </small>
                     </div>
                   </div>
                   <MetricBar
-                    label="CPU utilization"
+                    label={tr('CPU utilization')}
                     value={metric?.cpuPercent ?? null}
-                    detail={`${metric?.cores ?? '—'} logical cores · ${data.reservations.filter((r) => r.nodeId === 'local').reduce((s, r) => s + r.cpu, 0)} reserved`}
+                    detail={tr('{cores} logical cores · {reserved} reserved', {
+                      cores: metric?.cores ?? '—',
+                      reserved: data.reservations
+                        .filter((r) => r.nodeId === 'local')
+                        .reduce((s, r) => s + r.cpu, 0),
+                    })}
                   />
                   <MetricBar
-                    label="Memory"
+                    label={tr('Memory')}
                     value={metric ? (metric.ramUsedMb / metric.ramTotalMb) * 100 : null}
                     detail={
                       metric
                         ? `${(metric.ramUsedMb / 1024).toFixed(1)} / ${(metric.ramTotalMb / 1024).toFixed(1)} GB`
-                        : 'Waiting for first sample'
+                        : tr('Waiting for first sample')
                     }
                   />
                   <div className="gpu-summary">
                     <Cpu size={15} />
-                    <span>NVIDIA GPU</span>
-                    <b>{metric?.gpus?.length ? metric.gpus[0].name : 'Unavailable'}</b>
+                    <span> {tr('NVIDIA GPU')} </span>
+                    <b>{metric?.gpus?.length ? metric.gpus[0].name : tr('Unavailable')}</b>
                   </div>
                   <button className="text-button" onClick={() => setView('compute')}>
-                    Manage compute nodes <ArrowUpRight size={13} />
+                    {' '}
+                    {tr('Manage compute nodes')} <ArrowUpRight size={13} />
                   </button>
                 </div>
               </section>
@@ -765,17 +820,18 @@ export function App() {
             <div className="dashboard-grid lower">
               <section className="surface">
                 <div className="section-heading">
-                  <h2>Recent activity</h2>
+                  <h2> {tr('Recent activity')} </h2>
                   <button className="text-button" onClick={() => setView('activity')}>
-                    Full timeline <ArrowUpRight size={13} />
+                    {' '}
+                    {tr('Full timeline')} <ArrowUpRight size={13} />
                   </button>
                 </div>
                 <Timeline events={events.slice(-6).reverse()} />
               </section>
               <section className="surface">
                 <div className="section-heading">
-                  <h2>Agent providers</h2>
-                  <span className="subtle">Native authentication</span>
+                  <h2> {tr('Agent providers')} </h2>
+                  <span className="subtle"> {tr('Native authentication')} </span>
                 </div>
                 <div className="provider-list">
                   {data.providers.map((p) => (
@@ -787,8 +843,8 @@ export function App() {
                         <b>{p.name}</b>
                         <small>
                           {p.id === 'mock'
-                            ? 'Test fixture · no inference'
-                            : (p.version ?? 'Not installed')}
+                            ? tr('Test fixture · no inference')
+                            : (p.version ?? tr('Not installed'))}
                         </small>
                       </div>
                       <Badge
@@ -808,8 +864,10 @@ export function App() {
                 <div className="note">
                   <Shield size={14} />
                   <span>
-                    Credentials stay with the native CLI. Real agents run only after your explicit
-                    launch.
+                    {' '}
+                    {tr(
+                      'Credentials stay with the native CLI. Real agents run only after your explicit launch.',
+                    )}{' '}
                   </span>
                 </div>
               </section>
@@ -820,13 +878,13 @@ export function App() {
           <>
             <div className="page-heading">
               <div>
-                <div className="eyebrow">PROJECT WORKSPACE</div>
-                <h1>{project?.name ?? 'Projects'}</h1>
+                <div className="eyebrow"> {tr('PROJECT WORKSPACE')} </div>
+                <h1>{project?.name ?? tr('Projects')}</h1>
                 <p>
                   <GitBranch size={13} />
-                  {project?.baseBranch ?? 'No repository selected'}
+                  {project?.baseBranch ?? tr('No repository selected')}
                   <span className="divider">/</span>
-                  {project?.repoPath ?? 'Import a local repository to get started'}
+                  {project?.repoPath ?? tr('Import a local repository to get started')}
                 </p>
               </div>
               <div className="button-group">
@@ -835,14 +893,18 @@ export function App() {
                     className="secondary"
                     onClick={() =>
                       confirm(
-                        'Archive project',
-                        `Archive ${project.name}? Source files and execution history are preserved.`,
-                        'Archive project',
+                        () => tr('Archive project'),
+                        () =>
+                          tr('Archive {name}? Source files and execution history are preserved.', {
+                            name: project.name,
+                          }),
+                        () => tr('Archive project'),
                         () => api(`/projects/${project.id}`, 'PATCH', { archived: true }),
                       )
                     }
                   >
-                    Archive
+                    {' '}
+                    {tr('Archive')}{' '}
                   </button>
                 )}
                 <button
@@ -850,29 +912,34 @@ export function App() {
                   disabled={!project}
                   onClick={() => setModal({ kind: 'task' })}
                 >
-                  <Plus size={15} />
-                  New task
+                  <Plus size={15} /> {tr('New task')}{' '}
                 </button>
               </div>
             </div>
             <div className="project-ribbon">
               <span>
                 <span className="dot green-bg" />
-                {tasks.filter((t) => t.state === 'running').length} running
+                {tasks.filter((t) => t.state === 'running').length} {tr('running')}{' '}
               </span>
               <span>
                 <Check size={13} />
-                {tasks.filter((t) => t.state === 'completed').length} completed
+                {tasks.filter((t) => t.state === 'completed').length} {tr('completed')}{' '}
               </span>
               <span>
                 <Layers size={13} />
-                {project?.concurrency ?? 0} parallel slots
+                {project?.concurrency ?? 0} {tr('parallel slots')}{' '}
               </span>
               <span>
-                <GitMerge size={13} />
-                Explicit integration approval
+                <GitMerge size={13} /> {tr('Explicit integration approval')}{' '}
               </span>
             </div>
+            {project && (
+              <ExternalSessions
+                key={project.id}
+                projectId={project.id}
+                archived={project.archived}
+              />
+            )}
             <section className="surface task-surface">
               <div className="task-toolbar">
                 <div className="segmented">
@@ -880,31 +947,37 @@ export function App() {
                     className={treeMode === 'tree' ? 'active' : ''}
                     onClick={() => setTreeMode('tree')}
                   >
-                    <ListTree size={15} />
-                    Task tree
+                    <ListTree size={15} /> {tr('Task tree')}{' '}
                   </button>
                   <button
                     className={treeMode === 'graph' ? 'active' : ''}
                     onClick={() => setTreeMode('graph')}
                   >
-                    <Network size={15} />
-                    Dependencies
+                    <Network size={15} /> {tr('Dependencies')}{' '}
                   </button>
                 </div>
-                <small>{tasks.length} tasks · drag to reparent</small>
+                <small>
+                  {tasks.length} {tr('tasks · drag to reparent')}{' '}
+                </small>
                 <button
                   className="secondary small"
                   disabled={!tasks.some((t) => t.state === 'draft')}
                   onClick={() =>
                     confirm(
-                      'Queue draft tasks',
-                      `Queue ${tasks.filter((t) => t.state === 'draft').length} tasks? Dependencies and resource budgets determine start order. This authorizes provider usage and the configured validation commands: ${
-                        tasks
-                          .filter((t) => t.state === 'draft' && t.validationCommand?.length)
-                          .map((t) => JSON.stringify(t.validationCommand))
-                          .join(', ') || 'none'
-                      }.`,
-                      'Queue tasks',
+                      () => tr('Queue draft tasks'),
+                      () =>
+                        tr(
+                          'Queue {count} tasks? Dependencies and resource budgets determine start order. This authorizes provider usage and the configured validation commands: {commands}.',
+                          {
+                            count: tasks.filter((t) => t.state === 'draft').length,
+                            commands:
+                              tasks
+                                .filter((t) => t.state === 'draft' && t.validationCommand?.length)
+                                .map((t) => JSON.stringify(t.validationCommand))
+                                .join(', ') || tr('none'),
+                          },
+                        ),
+                      () => tr('Queue tasks'),
                       async () => {
                         for (const t of tasks.filter((t) => t.state === 'draft'))
                           await api(`/tasks/${t.id}/runs`, 'POST', {
@@ -916,32 +989,32 @@ export function App() {
                     )
                   }
                 >
-                  <Play size={13} />
-                  Queue draft tasks
+                  <Play size={13} /> {tr('Queue draft tasks')}{' '}
                 </button>
               </div>
               {!tasks.length ? (
-                <Empty title="Plan the work, then let your agents execute">
-                  Create tasks, assign a provider, and connect dependencies.
-                  <br />
+                <Empty title={tr('Plan the work, then let your agents execute')}>
+                  {' '}
+                  {tr('Create tasks, assign a provider, and connect dependencies.')} <br />
                   <button
                     className="text-button"
                     disabled={!project}
                     onClick={() => setModal({ kind: 'task' })}
                   >
-                    Create your first task <ArrowRight size={14} />
+                    {' '}
+                    {tr('Create your first task')} <ArrowRight size={14} />
                   </button>
                 </Empty>
               ) : treeMode === 'tree' ? (
                 <>
                   <div className="task-table-head">
-                    <span>TASK</span>
-                    <span>STATUS</span>
-                    <span>AGENT</span>
-                    <span>NODE</span>
+                    <span> {tr('TASK')} </span>
+                    <span> {tr('STATUS')} </span>
+                    <span> {tr('AGENT')} </span>
+                    <span> {tr('NODE')} </span>
                     <span />
                   </div>
-                  <div role="tree" aria-label="Project task tree">
+                  <div role="tree" aria-label={tr('Project task tree')}>
                     <TaskTree
                       tasks={tasks}
                       taskId={taskId}
@@ -951,8 +1024,20 @@ export function App() {
                       selectTask={selectTask}
                       onMenu={setContext}
                       onLaunch={(task) => setModal({ kind: 'launch', task })}
+                      onDelete={(task) =>
+                        confirm(
+                          () => tr('Delete task'),
+                          () =>
+                            tr(
+                              'Delete {title}? Tasks with execution history, children or dependents are protected.',
+                              { title: task.title },
+                            ),
+                          () => tr('Delete task'),
+                          () => api(`/tasks/${task.id}`, 'DELETE'),
+                        )
+                      }
                       onMove={(id, parentId) =>
-                        safe(() => api(`/tasks/${id}`, 'PATCH', { parentId }), 'Task moved')
+                        safe(() => api(`/tasks/${id}`, 'PATCH', { parentId }), tr('Task moved'))
                       }
                     />
                   </div>
@@ -965,37 +1050,40 @@ export function App() {
                       if (id)
                         safe(
                           () => api(`/tasks/${id}`, 'PATCH', { parentId: null }),
-                          'Moved to root',
+                          tr('Moved to root'),
                         );
                     }}
                     onClick={() => setModal({ kind: 'task' })}
                   >
-                    <Plus size={14} /> Add a task <span>or drop here to move to root</span>
+                    <Plus size={14} /> {tr('Add a task')}{' '}
+                    <span> {tr('or drop here to move to root')} </span>
                   </button>
                 </>
               ) : (
-                <Suspense fallback={<p role="status">Loading graph…</p>}>
+                <Suspense fallback={<p role="status"> {tr('Loading graph…')} </p>}>
                   <DependencyGraph tasks={tasks} select={selectTask} />
                 </Suspense>
               )}
             </section>
             <div className="project-footnote">
-              <Shield size={14} />
-              Tree hierarchy organizes work. Dependency edges control execution. Completion does not
-              automatically merge code.
+              <Shield size={14} />{' '}
+              {tr(
+                'Tree hierarchy organizes work. Dependency edges control execution. Completion does not automatically merge code.',
+              )}{' '}
             </div>
             {task && (
               <section className="surface task-detail">
                 <div className="section-heading">
                   <h2>{task.title}</h2>
                   <button className="text-button" onClick={() => setModal({ kind: 'task', task })}>
-                    Edit task <ArrowUpRight size={13} />
+                    {' '}
+                    {tr('Edit task')} <ArrowUpRight size={13} />
                   </button>
                 </div>
-                <p>{task.description || 'No description added.'}</p>
+                <p>{task.description || tr('No description added.')}</p>
                 {task.criteria && (
                   <div className="criteria">
-                    <small>ACCEPTANCE CRITERIA</small>
+                    <small> {tr('ACCEPTANCE CRITERIA')} </small>
                     <p>{task.criteria}</p>
                   </div>
                 )}
@@ -1008,9 +1096,13 @@ export function App() {
                     </button>
                   ))}
                   {!taskSessions.length && (
-                    <small>No sessions yet. Start a run to create an isolated worktree.</small>
+                    <small>
+                      {' '}
+                      {tr('No sessions yet. Start a run to create an isolated worktree.')}{' '}
+                    </small>
                   )}
                 </div>
+                <ExecutionSummary key={task.id} taskId={task.id} />
               </section>
             )}
           </>
@@ -1019,9 +1111,9 @@ export function App() {
           <>
             <div className="page-heading">
               <div>
-                <div className="eyebrow">MULTI-AGENT EXECUTION</div>
-                <h1>Session console</h1>
-                <p>Conversation, execution, and source changes in one place.</p>
+                <div className="eyebrow"> {tr('MULTI-AGENT EXECUTION')} </div>
+                <h1> {tr('Session console')} </h1>
+                <p> {tr('Conversation, execution, and source changes in one place.')} </p>
               </div>
               {task && (
                 <button
@@ -1030,7 +1122,7 @@ export function App() {
                   onClick={() => setModal({ kind: 'launch', task, sessionId: session?.id })}
                 >
                   <Play size={14} />
-                  {session ? 'Continue session' : 'Start session'}
+                  {session ? tr('Continue session') : tr('Start session')}
                 </button>
               )}
             </div>
@@ -1066,8 +1158,9 @@ export function App() {
                 })}
             </div>
             {!session ? (
-              <Empty icon={<MessagesSquare />} title="No session selected">
-                Start a task from a project to create its first isolated execution.
+              <Empty icon={<MessagesSquare />} title={tr('No session selected')}>
+                {' '}
+                {tr('Start a task from a project to create its first isolated execution.')}{' '}
               </Empty>
             ) : (
               <section className="surface console-surface">
@@ -1091,21 +1184,23 @@ export function App() {
                           onClick={() =>
                             safe(
                               () => api(`/runs/${run.id}/cancel`, 'POST', { mode: 'paused' }),
-                              'Interrupt requested',
+                              tr('Interrupt requested'),
                             )
                           }
                         >
-                          <Pause size={13} />
-                          Interrupt
+                          <Pause size={13} /> {tr('Interrupt')}{' '}
                         </button>
                         <button
                           className="icon-button"
-                          aria-label="Cancel run"
+                          aria-label={tr('Cancel run')}
                           onClick={() =>
                             confirm(
-                              'Cancel execution',
-                              'Stop this execution? The worktree and history will be retained.',
-                              'Cancel run',
+                              () => tr('Cancel execution'),
+                              () =>
+                                tr(
+                                  'Stop this execution? The worktree and history will be retained.',
+                                ),
+                              () => tr('Cancel run'),
                               () => api(`/runs/${run.id}/cancel`, 'POST', { mode: 'cancelled' }),
                             )
                           }
@@ -1125,11 +1220,11 @@ export function App() {
                 )}
                 <div className="tabs">
                   {[
-                    ['console', 'Conversation', MessagesSquare],
-                    ['terminal', 'Tool output', TerminalSquare],
-                    ['diff', 'Git diff', FileCode],
-                    ['history', 'Run history', History],
-                    ['artifacts', 'Artifacts', Box],
+                    ['console', tr('Conversation'), MessagesSquare],
+                    ['terminal', tr('Tool output'), TerminalSquare],
+                    ['diff', tr('Git diff'), FileCode],
+                    ['history', tr('Run history'), History],
+                    ['artifacts', tr('Artifacts'), Box],
                   ].map(([id, label, Icon]) => {
                     const I = Icon as typeof FileCode;
                     return (
@@ -1164,10 +1259,10 @@ export function App() {
                           <div className="message-meta">
                             <span>
                               {e.type === 'MessageReceived'
-                                ? 'YOU'
+                                ? uiMessage('YOU')
                                 : e.type === 'MessageDelta'
                                   ? session.provider.toUpperCase()
-                                  : e.type.replace(/([A-Z])/g, ' $1').trim()}
+                                  : uiMessage(e.type)}
                             </span>
                             <time>{fmt(e.createdAt)}</time>
                           </div>
@@ -1178,7 +1273,7 @@ export function App() {
                                 e.data.error ??
                                 e.data.detail ??
                                 (e.type === 'SessionCompleted'
-                                  ? 'Execution completed. Review the diff before integration.'
+                                  ? tr('Execution completed. Review the diff before integration.')
                                   : JSON.stringify(e.data)),
                             )}
                           </div>
@@ -1192,15 +1287,17 @@ export function App() {
                         </div>
                       ))}
                     {!filteredEvents.length && (
-                      <Empty title="Waiting for execution events">
-                        The scheduler will launch this session when dependencies and capacity are
-                        ready.
+                      <Empty title={tr('Waiting for execution events')}>
+                        {' '}
+                        {tr(
+                          'The scheduler will launch this session when dependencies and capacity are ready.',
+                        )}{' '}
                       </Empty>
                     )}
                   </div>
                 )}
                 {tab === 'terminal' && (
-                  <Suspense fallback={<p role="status">Loading tool output…</p>}>
+                  <Suspense fallback={<p role="status"> {tr('Loading tool output…')} </p>}>
                     <TerminalOutput
                       key={session.id}
                       events={events.filter((e) => e.sessionId === session.id)}
@@ -1212,7 +1309,7 @@ export function App() {
                     <div className="diff-toolbar">
                       <span>
                         <GitBranch size={14} />
-                        {workspace?.branch ?? 'Worktree pending'}
+                        {workspace?.branch ?? tr('Worktree pending')}
                       </span>
                       <button
                         className="secondary small"
@@ -1226,16 +1323,15 @@ export function App() {
                           safe(
                             () =>
                               api<Approval>(`/sessions/${session.id}/merge-preview`, 'POST', {}),
-                            'Merge preview created. Review the approval in the inspector.',
+                            tr('Merge preview created. Review the approval in the inspector.'),
                           )
                         }
                       >
-                        <GitMerge size={13} />
-                        Preview merge
+                        <GitMerge size={13} /> {tr('Preview merge')}{' '}
                       </button>
                     </div>
                     {diffLoading ? (
-                      <p className="padding">Loading diff…</p>
+                      <p className="padding"> {tr('Loading diff…')} </p>
                     ) : (
                       <pre>
                         {diff
@@ -1255,7 +1351,7 @@ export function App() {
                                 {line || ' '}
                               </div>
                             ))
-                          : 'No recorded changes.'}
+                          : tr('No recorded changes.')}
                       </pre>
                     )}
                   </div>
@@ -1274,7 +1370,7 @@ export function App() {
                               {new Date(r.createdAt).toLocaleString()} ·{' '}
                               {r.endedAt && r.startedAt
                                 ? `${((Date.parse(r.endedAt) - Date.parse(r.startedAt)) / 1000).toFixed(1)}s`
-                                : 'Pending / active'}
+                                : tr('Pending / active')}
                             </small>
                             {r.error && <p className="error-text">{r.error}</p>}
                           </div>
@@ -1310,8 +1406,7 @@ export function App() {
                               setTimeout(() => URL.revokeObjectURL(url), 1000);
                             }}
                           >
-                            <ArrowDownToLine size={13} />
-                            Download artifact
+                            <ArrowDownToLine size={13} /> {tr('Download artifact')}{' '}
                           </button>
                         </details>
                       ))}
@@ -1320,13 +1415,16 @@ export function App() {
                 <div className="console-bottom">
                   <span>
                     <GitBranch size={12} />
-                    {workspace?.branch ?? 'Worktree created when run starts'}
+                    {workspace?.branch ?? tr('Worktree created when run starts')}
                   </span>
                   <span>
                     <Zap size={12} />
                     {run?.usage?.input_tokens !== undefined
-                      ? `${run.usage.input_tokens} in · ${run.usage.output_tokens ?? '—'} out tokens`
-                      : 'Token usage unavailable'}
+                      ? tr('{input} in · {output} out tokens', {
+                          input: String(run.usage.input_tokens),
+                          output: String(run.usage.output_tokens ?? '—'),
+                        })
+                      : tr('Token usage unavailable')}
                   </span>
                 </div>
                 <form
@@ -1339,15 +1437,16 @@ export function App() {
                   <MessagesSquare size={17} />
                   <span>
                     {run && active(run)
-                      ? 'Execution active. Interrupt before sending another turn.'
-                      : 'Continue the conversation with a new instruction.'}
+                      ? tr('Execution active. Interrupt before sending another turn.')
+                      : tr('Continue the conversation with a new instruction.')}
                   </span>
                   <button
                     className="secondary small"
                     disabled={session.closed || Boolean(run && active(run))}
                     type="submit"
                   >
-                    New instruction <ArrowRight size={13} />
+                    {' '}
+                    {tr('New instruction')} <ArrowRight size={13} />
                   </button>
                 </form>
               </section>
@@ -1355,7 +1454,7 @@ export function App() {
           </>
         )}
         {view === 'experiments' && (
-          <Suspense fallback={<p>Loading experiments…</p>}>
+          <Suspense fallback={<p> {tr('Loading experiments…')} </p>}>
             <ExperimentsPage
               data={data}
               search={search}
@@ -1373,19 +1472,22 @@ export function App() {
                   navigate({ projectId: target.id, taskId: '', sessionId: '' }, true);
                   setModal({ kind: 'task', experiment: true });
                 } else if (selectedProjectId)
-                  notify('Choose an active project before creating a task.', true);
+                  notify(tr('Choose an active project before creating a task.'), true);
                 else setModal({ kind: 'project' });
               }}
             />
           </Suspense>
         )}
         {view === 'compute' && (
-          <Suspense fallback={<p role="status">Loading compute workspace…</p>}>
+          <Suspense fallback={<p role="status"> {tr('Loading compute workspace…')} </p>}>
             <Compute
               data={data}
               onAdd={() => setModal({ kind: 'node' })}
               onRefresh={(id) => {
-                void safe(() => api(`/nodes/${id}/probe`, 'POST', {}), 'Node telemetry refreshed');
+                void safe(
+                  () => api(`/nodes/${id}/probe`, 'POST', {}),
+                  tr('Node telemetry refreshed'),
+                );
               }}
               onTask={(t) => {
                 navigate({
@@ -1404,11 +1506,18 @@ export function App() {
           <>
             <div className="page-heading">
               <div>
-                <div className="eyebrow">PERSISTENT EVENT STORE</div>
-                <h1>Activity timeline</h1>
-                <p>Execution history, replayed from SQLite. Latest 5,000 events in this view.</p>
+                <div className="eyebrow"> {tr('PERSISTENT EVENT STORE')} </div>
+                <h1> {tr('Activity timeline')} </h1>
+                <p>
+                  {' '}
+                  {tr(
+                    'Execution history, replayed from SQLite. Latest 5,000 events in this view.',
+                  )}{' '}
+                </p>
               </div>
-              <span className="event-counter">{events.length} loaded events</span>
+              <span className="event-counter">
+                {events.length} {tr('loaded events')}{' '}
+              </span>
             </div>
             <section className="surface">
               <Timeline events={filteredEvents.slice().reverse()} full />
@@ -1419,25 +1528,24 @@ export function App() {
           <>
             <div className="page-heading">
               <div>
-                <div className="eyebrow">WORKSPACE CONFIGURATION</div>
-                <h1>Settings & providers</h1>
-                <p>Your local tools. Your accounts. Explicit capabilities.</p>
+                <div className="eyebrow"> {tr('WORKSPACE CONFIGURATION')} </div>
+                <h1> {tr('Settings & providers')} </h1>
+                <p> {tr('Your local tools. Your accounts. Explicit capabilities.')} </p>
               </div>
               <button
                 className="secondary"
                 onClick={() =>
-                  safe(() => api('/providers/refresh', 'POST', {}), 'Provider checks refreshed')
+                  safe(() => api('/providers/refresh', 'POST', {}), tr('Provider checks refreshed'))
                 }
               >
-                <RefreshCw size={14} />
-                Check providers
+                <RefreshCw size={14} /> {tr('Check providers')}{' '}
               </button>
             </div>
             <div className="settings-grid">
               {data.providers.map((p) => (
                 <section className="surface provider-settings" key={p.id}>
                   <div className="section-heading">
-                    <h2>{p.name}</h2>
+                    <h2>{uiMessage(p.name)}</h2>
                     <Badge
                       state={
                         p.authenticated
@@ -1450,49 +1558,52 @@ export function App() {
                       }
                     />
                   </div>
-                  <p>{p.detail}</p>
-                  <code>{p.version ?? 'Version unavailable'}</code>
+                  <p>{uiMessage(p.detail)}</p>
+                  <code>{p.version ?? tr('Version unavailable')}</code>
                   <dl>
-                    <dt>Streaming / resume</dt>
+                    <dt> {tr('Streaming / resume')} </dt>
                     <dd>
-                      {p.capabilities.streaming ? 'Supported' : 'Unavailable'} /{' '}
-                      {p.capabilities.resume ? 'Supported' : 'Unavailable'}
+                      {p.capabilities.streaming ? tr('Supported') : tr('Unavailable')} /{' '}
+                      {p.capabilities.resume ? tr('Supported') : tr('Unavailable')}
                     </dd>
-                    <dt>Interactive tool approval</dt>
-                    <dd>{p.capabilities.interactiveApproval ? 'Supported' : 'Unavailable'}</dd>
-                    <dt>CPU / RAM hard limits</dt>
-                    <dd>Unavailable</dd>
-                    <dt>Cost</dt>
+                    <dt> {tr('Interactive tool approval')} </dt>
+                    <dd>
+                      {p.capabilities.interactiveApproval ? tr('Supported') : tr('Unavailable')}
+                    </dd>
+                    <dt> {tr('CPU / RAM hard limits')} </dt>
+                    <dd> {tr('Unavailable')} </dd>
+                    <dt> {tr('Cost')} </dt>
                     <dd>
                       {p.capabilities.cost === 'estimate'
-                        ? 'Provider estimate · cumulative conversation'
-                        : 'Unavailable'}
+                        ? tr('Provider estimate · cumulative conversation')
+                        : tr('Unavailable')}
                     </dd>
                   </dl>
                   {p.id !== 'mock' && (
                     <div className="setup-code">
-                      <small>Run in your own terminal to authenticate:</small>
+                      <small> {tr('Run in your own terminal to authenticate:')} </small>
                       <code>{p.id === 'codex' ? 'npx codex login' : 'npx claude auth login'}</code>
-                      <p>The application does not read or copy credential files.</p>
+                      <p> {tr('The application does not read or copy credential files.')} </p>
                     </div>
                   )}
                 </section>
               ))}
             </div>
             <section className="surface preference-panel">
-              <h2>Interface</h2>
+              <h2> {tr('Interface')} </h2>
               <label className="check-label">
                 <input
                   type="checkbox"
                   checked={inspector}
                   onChange={(e) => setInspector(e.target.checked)}
-                />
-                Show contextual inspector
+                />{' '}
+                {tr('Show contextual inspector')}{' '}
               </label>
               <label className="range-label">
-                Inspector width
+                {' '}
+                {tr('Inspector width')}{' '}
                 <input
-                  aria-label="Inspector width"
+                  aria-label={tr('Inspector width')}
                   type="range"
                   min="270"
                   max="480"
@@ -1502,13 +1613,13 @@ export function App() {
                 <span>{width}px</span>
               </label>
               <p>
-                <kbd>Ctrl / ⌘ K</kbd> Search <kbd>Ctrl / ⌘ Shift N</kbd> New task <kbd>Esc</kbd>{' '}
-                Dismiss
+                <kbd>Ctrl / ⌘ K</kbd> {tr('Search')} <kbd>Ctrl / ⌘ Shift N</kbd> {tr('New task')}{' '}
+                <kbd>Esc</kbd> {tr('Dismiss')}{' '}
               </p>
             </section>
             {data.projects.some((p) => p.archived) && (
               <section className="surface preference-panel">
-                <h2>Archived projects</h2>
+                <h2> {tr('Archived projects')} </h2>
                 {data.projects
                   .filter((p) => p.archived)
                   .map((p) => (
@@ -1519,11 +1630,12 @@ export function App() {
                         onClick={() =>
                           safe(
                             () => api(`/projects/${p.id}`, 'PATCH', { archived: false }),
-                            'Project restored',
+                            tr('Project restored'),
                           )
                         }
                       >
-                        Restore
+                        {' '}
+                        {tr('Restore')}{' '}
                       </button>
                     </div>
                   ))}
@@ -1540,17 +1652,23 @@ export function App() {
         >
           {[
             {
-              label: 'Edit task',
+              label: tr('Run / re-run with model…'),
+              icon: Play,
+              disabled: data.runs.some((run) => run.taskId === context.task.id && active(run)),
+              run: () => setModal({ kind: 'launch', task: context.task }),
+            },
+            {
+              label: tr('Edit task'),
               icon: Settings,
               run: () => setModal({ kind: 'task', task: context.task }),
             },
             {
-              label: 'Add child task',
+              label: tr('Add child task'),
               icon: Plus,
               run: () => setModal({ kind: 'task', parentId: context.task.id }),
             },
             {
-              label: 'Duplicate task',
+              label: tr('Duplicate task'),
               icon: Copy,
               run: () =>
                 safe(
@@ -1559,23 +1677,29 @@ export function App() {
                       ...context.task,
                       title: `${context.task.title} (copy)`,
                     }),
-                  'Task duplicated',
+                  tr('Task duplicated'),
                 ),
             },
             {
-              label: 'Delete task',
+              label: tr('Delete task'),
               icon: Trash2,
+              disabled: data.runs.some((run) => run.taskId === context.task.id && active(run)),
               run: () =>
                 confirm(
-                  'Delete task',
-                  `Delete ${context.task.title}? Tasks with execution history or dependents are protected.`,
-                  'Delete task',
+                  () => tr('Delete task'),
+                  () =>
+                    tr(
+                      'Delete {title}? Tasks with execution history or dependents are protected.',
+                      { title: context.task.title },
+                    ),
+                  () => tr('Delete task'),
                   () => api(`/tasks/${context.task.id}`, 'DELETE'),
                 ),
             },
           ].map((item) => (
             <button
               key={item.label}
+              disabled={item.disabled}
               onClick={() => {
                 item.run();
                 setContext(null);
@@ -1590,8 +1714,8 @@ export function App() {
       {toast && (
         <div role="status" className={`toast ${toast.error ? 'error' : ''}`}>
           {toast.error ? <AlertCircle size={17} /> : <Check size={17} />}
-          <span>{toast.text}</span>
-          <button aria-label="Dismiss notification" onClick={() => setToast(null)}>
+          <span>{toast.error ? errorText(toast.text) : uiMessage(toast.text)}</span>
+          <button aria-label={tr('Dismiss notification')} onClick={() => setToast(null)}>
             <X size={14} />
           </button>
         </div>
@@ -1600,18 +1724,18 @@ export function App() {
         <ModalFrame
           title={
             modal.kind === 'project'
-              ? 'Import Git project'
+              ? tr('Import Git project')
               : modal.kind === 'task'
                 ? modal.task
-                  ? 'Edit task'
-                  : 'Create task'
+                  ? tr('Edit task')
+                  : tr('Create task')
                 : modal.kind === 'launch'
                   ? modal.sessionId
-                    ? 'Continue session'
-                    : 'Launch agent session'
+                    ? tr('Continue session')
+                    : tr('Launch agent session')
                   : modal.kind === 'node'
-                    ? 'Connect SSH worker'
-                    : modal.title
+                    ? tr('Connect SSH worker')
+                    : modal.title()
           }
           close={() => !busy && setModal(null)}
         >
@@ -1619,18 +1743,25 @@ export function App() {
             {modal.kind === 'project' && (
               <>
                 <p className="form-hint">
-                  Connect an existing local Git repository with at least one commit. Agents work in
-                  separate branches and worktrees.
+                  {' '}
+                  {tr(
+                    'Connect an existing local Git repository with at least one commit. Agents work in separate branches and worktrees.',
+                  )}{' '}
                 </p>
-                <Field label="Project name" name="name" placeholder="CV-Agent-Project" required />
                 <Field
-                  label="Repository path"
+                  label={tr('Project name')}
+                  name="name"
+                  placeholder="CV-Agent-Project"
+                  required
+                />
+                <Field
+                  label={tr('Repository path')}
                   name="repoPath"
                   placeholder="/home/you/projects/cv-agent or C:\\Projects\\cv-agent"
                   required
                 />
                 <Field
-                  label="Concurrent sessions"
+                  label={tr('Concurrent sessions')}
                   name="concurrency"
                   type="number"
                   value="2"
@@ -1638,65 +1769,75 @@ export function App() {
                   max="32"
                 />
                 <div className="note">
-                  <Shield size={15} />
-                  The repository is never reset or deleted by this application.
+                  <Shield size={15} />{' '}
+                  {tr('The repository is never reset or deleted by this application.')}{' '}
                 </div>
               </>
             )}
             {modal.kind === 'task' && (
               <>
-                <p className="form-hint">Project · {project?.name}</p>
+                <p className="form-hint">
+                  {' '}
+                  {tr('Project ·')} {project?.name}
+                </p>
                 <Field
-                  label="Task title"
+                  label={tr('Task title')}
                   name="title"
                   value={modal.task?.title}
-                  placeholder="Implement Backend API"
+                  placeholder={tr('Implement Backend API')}
                   required
                 />
                 <label>
-                  Description
+                  {' '}
+                  {tr('Description')}{' '}
                   <textarea
                     name="description"
+                    aria-label={tr('Description')}
                     rows={4}
                     defaultValue={modal.task?.description}
-                    placeholder="Explain the goal, constraints, and expected changes…"
+                    placeholder={tr('Explain the goal, constraints, and expected changes…')}
                   />
                 </label>
                 <label>
-                  Acceptance criteria
+                  {' '}
+                  {tr('Acceptance criteria')}{' '}
                   <textarea
                     name="criteria"
+                    aria-label={tr('Acceptance criteria')}
                     rows={2}
                     defaultValue={modal.task?.criteria}
-                    placeholder="What must be true when this task is complete?"
+                    placeholder={tr('What must be true when this task is complete?')}
                   />
                 </label>
                 <div className="form-grid">
                   <label>
-                    Provider
+                    {' '}
+                    {tr('Provider')}{' '}
                     <select name="provider" defaultValue={modal.task?.provider ?? 'mock'}>
-                      <option value="mock">Mock Agent · deterministic test</option>
+                      <option value="mock"> {tr('Mock Agent · deterministic test')} </option>
                       <option value="codex">OpenAI Codex</option>
                       <option value="claude">Claude Code</option>
                     </select>
                   </label>
                   <label>
-                    Execution node
+                    {' '}
+                    {tr('Execution node')}{' '}
                     <select name="nodeId" defaultValue={modal.task?.nodeId ?? 'local'}>
                       {data.nodes.map((n) => (
                         <option key={n.id} value={n.id}>
-                          {n.name} · {n.status}
+                          {n.name} · {uiMessage(n.status)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    Parent task
+                    {' '}
+                    {tr('Parent task')}{' '}
                     <select
                       name="parentId"
                       defaultValue={modal.task?.parentId ?? modal.parentId ?? ''}
                     >
-                      <option value="">Project root</option>
+                      <option value=""> {tr('Project root')} </option>
                       {tasks
                         .filter((t) => t.id !== modal.task?.id)
                         .map((t) => (
@@ -1707,7 +1848,7 @@ export function App() {
                     </select>
                   </label>
                   <Field
-                    label="Priority (0–100)"
+                    label={tr('Priority (0–100)')}
                     name="priority"
                     type="number"
                     value={String(modal.task?.priority ?? 50)}
@@ -1716,7 +1857,7 @@ export function App() {
                   />
                 </div>
                 <fieldset>
-                  <legend>Execution dependencies</legend>
+                  <legend> {tr('Execution dependencies')} </legend>
                   <div className="dependency-choices">
                     {tasks
                       .filter((t) => t.id !== modal.task?.id)
@@ -1731,7 +1872,7 @@ export function App() {
                           {t.title}
                         </label>
                       ))}
-                    {!tasks.length && <small>No other tasks yet.</small>}
+                    {!tasks.length && <small> {tr('No other tasks yet.')} </small>}
                   </div>
                 </fieldset>
                 <label className="check-label">
@@ -1739,8 +1880,8 @@ export function App() {
                     name="integration"
                     type="checkbox"
                     defaultChecked={modal.task?.integration}
-                  />
-                  Build an integration worktree from successful dependency commits
+                  />{' '}
+                  {tr('Build an integration worktree from successful dependency commits')}{' '}
                 </label>
                 <ExperimentFields
                   key={modal.task?.id ?? 'new'}
@@ -1748,10 +1889,10 @@ export function App() {
                   initiallyEnabled={modal.experiment}
                 />
                 <details className="advanced" open={Boolean(modal.task)}>
-                  <summary>Resources & remote execution</summary>
+                  <summary> {tr('Resources & remote execution')} </summary>
                   <div className="form-grid">
                     <Field
-                      label="CPU soft budget"
+                      label={tr('CPU soft budget')}
                       name="cpu"
                       type="number"
                       value={String(modal.task?.allocation.cpu ?? 1)}
@@ -1759,27 +1900,27 @@ export function App() {
                       step="0.1"
                     />
                     <Field
-                      label="RAM soft budget (MB)"
+                      label={tr('RAM soft budget (MB)')}
                       name="ramMb"
                       type="number"
                       value={String(modal.task?.allocation.ramMb ?? 512)}
                       min="1"
                     />
                     <Field
-                      label="GPU UUID or index (optional; UUID recommended)"
+                      label={tr('GPU UUID or index (optional; UUID recommended)')}
                       name="gpu"
                       value={modal.task?.allocation.gpu ?? ''}
-                      placeholder="GPU-… or 0"
+                      placeholder={tr('GPU-… or 0')}
                     />
                     <Field
-                      label="VRAM soft budget (MB)"
+                      label={tr('VRAM soft budget (MB)')}
                       name="vramMb"
                       type="number"
                       value={String(modal.task?.allocation.vramMb ?? 0)}
                       min="0"
                     />
                     <Field
-                      label="Execution timeout (seconds)"
+                      label={tr('Execution timeout (seconds)')}
                       name="timeoutSec"
                       type="number"
                       value={String(modal.task?.allocation.timeoutSec ?? 600)}
@@ -1788,13 +1929,13 @@ export function App() {
                     />
                   </div>
                   <Field
-                    label="Validation command as JSON argv (optional, local only)"
+                    label={tr('Validation command as JSON argv (optional, local only)')}
                     name="validationCommand"
                     value={JSON.stringify(modal.task?.validationCommand ?? [])}
                     placeholder={'["node","--test"]'}
                   />
                   <Field
-                    label="Remote repository path (SSH tasks only)"
+                    label={tr('Remote repository path (SSH tasks only)')}
                     name="remoteRepoPath"
                     value={modal.task?.remoteRepoPath ?? ''}
                     placeholder="/srv/projects/cv-agent"
@@ -1817,12 +1958,13 @@ export function App() {
                     <small>
                       {modal.task.provider} ·{' '}
                       {data.nodes.find((n) => n.id === modal.task.nodeId)?.name} ·{' '}
-                      {modal.sessionId ? 'existing conversation' : 'new isolated worktree'}
+                      {modal.sessionId ? tr('existing conversation') : tr('new isolated worktree')}
                     </small>
                   </div>
                 </div>
                 <label>
-                  Instruction
+                  {' '}
+                  {tr('Instruction')}{' '}
                   <textarea
                     name="prompt"
                     rows={6}
@@ -1832,69 +1974,92 @@ export function App() {
                         ? ''
                         : `${modal.task.description}\n\nAcceptance criteria: ${modal.task.criteria}`
                     }
-                    placeholder="Describe your next instruction…"
+                    placeholder={tr('Describe your next instruction…')}
                   />
                 </label>
-                <Field
-                  label="Model (optional — provider default if empty)"
-                  name="model"
-                  placeholder="Leave empty to use native settings"
+                <ModelSelector
+                  key={`${modal.task.id}:${modal.sessionId ?? 'new'}`}
+                  provider={modal.task.provider}
+                  session={data.sessions.find((session) => session.id === modal.sessionId)}
                 />
                 {modal.task.provider !== 'mock' ? (
                   <label className="consent">
                     <input type="checkbox" name="allowReal" required />
                     <span>
-                      Run this real provider using my native account. This can consume subscription
-                      quota or API credits. The CLI permission policy remains active.
+                      {' '}
+                      {tr(
+                        'Run this real provider using my native account. This can consume subscription quota or API credits. The CLI permission policy remains active.',
+                      )}{' '}
                     </span>
                   </label>
                 ) : (
                   <div className="note">
-                    <Box size={15} />
-                    Mock runs execute deterministic filesystem fixtures. No model inference or token
-                    usage.
+                    <Box size={15} />{' '}
+                    {tr(
+                      'Mock runs execute deterministic filesystem fixtures. No model inference or token usage.',
+                    )}{' '}
                   </div>
                 )}
                 {Boolean(modal.task.validationCommand?.length) && (
                   <label className="consent">
                     <input type="checkbox" name="allowValidation" required />
                     <span>
-                      Execute this command in the owned worktree:{' '}
-                      <code>{JSON.stringify(modal.task.validationCommand)}</code>. Test code runs
-                      with my local user permissions.
+                      {' '}
+                      {tr('Execute this command in the owned worktree:')}{' '}
+                      <code>{JSON.stringify(modal.task.validationCommand)}</code>{' '}
+                      {tr('. Test code runs with my local user permissions.')}{' '}
                     </span>
                   </label>
                 )}
                 <p className="form-hint">
-                  Queued runs start automatically when dependencies and resources are ready.
-                  Interrupt ends the current turn; continuing creates a new run.
+                  {' '}
+                  {tr(
+                    'Queued runs start automatically when dependencies and resources are ready. Interrupt ends the current turn; continuing creates a new run.',
+                  )}{' '}
                 </p>
               </>
             )}
             {modal.kind === 'node' && (
               <>
                 <p className="form-hint">
-                  Install the worker on a Linux host first. Use an SSH config alias with key
-                  authentication and a verified known_hosts entry. The worker requires
-                  WORKER_REPO_ROOT.
+                  {' '}
+                  {tr(
+                    'Install the worker on a Linux host first. Use an SSH config alias with key authentication and a verified known_hosts entry. The worker requires WORKER_REPO_ROOT.',
+                  )}{' '}
                 </p>
-                <Field label="Node name" name="name" placeholder="GPU workstation" required />
                 <Field
-                  label="SSH config alias"
+                  label={tr('Node name')}
+                  name="name"
+                  placeholder={tr('GPU workstation')}
+                  required
+                />
+                <Field
+                  label={tr('SSH config alias')}
                   name="sshAlias"
                   placeholder="gpu-workstation"
                   required
                 />
                 <Field
-                  label="Absolute worker entry path (no spaces)"
+                  label={tr('Absolute worker entry path (no spaces)')}
                   name="workerPath"
                   placeholder="/srv/ai-agent-workspace/dist/worker/src/index.js"
                   required
                 />
+                <Field
+                  label={tr('Node executable path (optional)')}
+                  name="nodePath"
+                  placeholder="/srv/node/bin/node"
+                />
                 <div className="form-grid">
-                  <Field label="Schedulable CPU cores" name="cpu" type="number" value="4" min="1" />
                   <Field
-                    label="Schedulable RAM (MB)"
+                    label={tr('Schedulable CPU cores')}
+                    name="cpu"
+                    type="number"
+                    value="4"
+                    min="1"
+                  />
+                  <Field
+                    label={tr('Schedulable RAM (MB)')}
                     name="ramMb"
                     type="number"
                     value="8192"
@@ -1902,13 +2067,14 @@ export function App() {
                   />
                 </div>
                 <div className="note">
-                  <Shield size={15} />
-                  Attached SSH transport. A lost connection requires reconciliation before capacity
-                  is released.
+                  <Shield size={15} />{' '}
+                  {tr(
+                    'Attached SSH transport. A lost connection requires reconciliation before capacity is released.',
+                  )}{' '}
                 </div>
               </>
             )}
-            {modal.kind === 'confirm' && <p className="confirm-detail">{modal.detail}</p>}
+            {modal.kind === 'confirm' && <p className="confirm-detail">{modal.detail()}</p>}
             <div className="modal-footer">
               <button
                 type="button"
@@ -1916,20 +2082,21 @@ export function App() {
                 disabled={busy}
                 onClick={() => setModal(null)}
               >
-                Cancel
+                {' '}
+                {tr('Cancel')}{' '}
               </button>
               <button className="primary" type="submit" disabled={busy}>
                 {busy
-                  ? 'Working…'
+                  ? tr('Working…')
                   : modal.kind === 'project'
-                    ? 'Import project'
+                    ? tr('Import project')
                     : modal.kind === 'task'
-                      ? 'Save task'
+                      ? tr('Save task')
                       : modal.kind === 'launch'
-                        ? 'Queue execution'
+                        ? tr('Queue execution')
                         : modal.kind === 'node'
-                          ? 'Add node'
-                          : modal.label}
+                          ? tr('Add node')
+                          : modal.label()}
                 <ArrowRight size={14} />
               </button>
             </div>

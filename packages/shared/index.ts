@@ -92,6 +92,7 @@ export interface Session {
   workspaceId: string;
   providerSessionId?: string;
   model?: string;
+  reasoningEffort?: import('./models.ts').ReasoningEffort;
   createdAt: string;
   closed: boolean;
 }
@@ -153,6 +154,7 @@ export interface ComputeNode {
   ramMb: number;
   sshAlias?: string;
   workerPath?: string;
+  nodePath?: string;
   lastSeen?: string;
   telemetryError?: string;
 }

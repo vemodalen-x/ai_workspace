@@ -6,6 +6,22 @@ import { readFile } from 'node:fs/promises';
 import { fixture, key, settle } from './helpers.ts';
 import { jsonProcess } from '../packages/agent-adapters/process.ts';
 import { git } from '../packages/git-manager/index.ts';
+import { sshNodeInput } from '../packages/orchestration/remote.ts';
+
+test('SSH node accepts a trusted absolute Node executable', () => {
+  const input = {
+    name: 'GPU host',
+    sshAlias: 'gpu-host',
+    workerPath: '/home/worker/monitor/worker-bootstrap.mjs',
+    nodePath: '/home/worker/monitor/bin/node',
+    cpu: 8,
+    ramMb: 16384,
+  };
+  assert.equal(sshNodeInput.parse(input).nodePath, input.nodePath);
+  assert.equal(sshNodeInput.parse({ ...input, nodePath: undefined }).nodePath, undefined);
+  assert.equal(sshNodeInput.safeParse({ ...input, nodePath: '/tmp/../bin/node' }).success, false);
+  assert.equal(sshNodeInput.safeParse({ ...input, nodePath: '/tmp/a;echo' }).success, false);
+});
 
 test('worker executes actual worktree fixture and deduplicates a completed run', async () => {
   const { svc, repo, root } = await fixture();

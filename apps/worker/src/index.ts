@@ -16,6 +16,7 @@ import { redact } from '../../../packages/agent-adapters/process.ts';
 import { GitManager, git, within } from '../../../packages/git-manager/index.ts';
 import { collectMetrics } from '../../../packages/resource-manager/index.ts';
 import { providerSchema, type Workspace } from '../../../packages/shared/index.ts';
+import { reasoningEffortSchema } from '../../../packages/shared/models.ts';
 const request = z.object({
   op: z.enum(['probe', 'metrics', 'run']),
   provider: providerSchema.optional(),
@@ -30,6 +31,7 @@ const request = z.object({
   prompt: z.string().max(40000).optional(),
   providerSessionId: z.string().optional(),
   model: z.string().max(200).optional(),
+  reasoningEffort: reasoningEffortSchema.optional(),
   gpu: z.string().max(100).nullable().optional(),
   timeoutSec: z.number().int().min(1).max(86400).default(3600),
 });
@@ -146,6 +148,7 @@ async function run(line: string) {
         prompt: req.prompt ?? '',
         providerSessionId: req.providerSessionId,
         model: req.model,
+        reasoningEffort: req.reasoningEffort,
         gpu: req.gpu,
         signal: abort.signal,
       },
