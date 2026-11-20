@@ -124,6 +124,7 @@ test('focus capture → clarify → project context → refresh without starting
   await expect(row).toContainText('clarify');
   await row.getByRole('button', { name: 'Clarify task', exact: true }).click();
   await page.getByLabel('Description', { exact: true }).fill('Profile the inference path');
+  await page.getByRole('dialog').getByLabel('Provider', { exact: true }).selectOption('mock');
   await page
     .getByLabel('Acceptance criteria')
     .fill('Report measured p50 and p95 with reproducible inputs');
