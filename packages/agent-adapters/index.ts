@@ -116,7 +116,7 @@ export class CodexAdapter implements AgentAdapter {
     });
     const options: ThreadOptions = {
       workingDirectory: c.cwd,
-      sandboxMode: 'workspace-write',
+      sandboxMode: process.env.WORKSPACE_CODEX_READ_ONLY === '1' ? 'read-only' : 'workspace-write',
       approvalPolicy: 'never',
       networkAccessEnabled: false,
       ...(c.model ? { model: c.model } : {}),

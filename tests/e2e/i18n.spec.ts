@@ -263,6 +263,7 @@ test('Chinese interface creates, runs and inspects a real Mock task', async ({ p
   await dialog.getByRole('button', { name: '导入项目', exact: true }).click();
   await page.getByRole('button', { name: '新建任务', exact: true }).click();
   await dialog.getByLabel('任务标题', { exact: true }).fill('Task A: Backend 原始标题');
+  await dialog.getByLabel('服务提供方', { exact: true }).selectOption('mock');
   await dialog.getByLabel('描述', { exact: true }).fill('Backend mock fixture');
   await dialog.getByRole('button', { name: '保存任务', exact: true }).click();
   await page.getByRole('button', { name: '将草稿任务加入队列', exact: true }).click();

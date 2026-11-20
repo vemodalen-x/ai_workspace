@@ -1,0 +1,11 @@
+[Unit]
+Description=Monitor AI Agent Workspace every 30 seconds
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=30
+AccuracySec=5
+Unit=ai-agent-workspace-health.service
+
+[Install]
+WantedBy=timers.target

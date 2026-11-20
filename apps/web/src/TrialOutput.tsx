@@ -116,6 +116,31 @@ export function TrialOutput({
   const key = keys.has(metric) ? metric : keys.keys().next().value;
   const points = metrics.filter((m) => seriesKey(m) === key);
   const compared = other.data?.metrics.filter((m) => seriesKey(m) === key) ?? [];
+  function downloadReport() {
+    const report = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      trial,
+      attempt: {
+        id: attempt.id,
+        state: attempt.state,
+        startedAt: attempt.startedAt,
+        endedAt: attempt.endedAt,
+        exitCode: attempt.exitCode,
+        reason: attempt.reason,
+        gpu: attempt.gpu,
+      },
+      output: { metrics, log, logTruncated, ignored },
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(report, null, 2) + '\n'], { type: 'application/json' }),
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'trial-' + attempt.id + '.json';
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   return (
     <div className="trial-output">
       {points.length ? (
@@ -171,6 +196,9 @@ export function TrialOutput({
           {ignored} {tr('invalid or excess metric readings omitted.')}{' '}
         </small>
       )}
+      <button className="secondary small" onClick={downloadReport}>
+        {tr('Export attempt JSON')}
+      </button>
       <details>
         <summary> {tr('Command output')} </summary>
         <pre>{log || tr('No output yet.')}</pre>

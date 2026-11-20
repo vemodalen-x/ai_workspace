@@ -50,6 +50,8 @@ export class TrialRunner {
     const spec = trialInput.parse(input);
     const project = this.store.get('projects', projectId);
     if (project.archived) throw new Error('Project archived');
+    if (project.executionReady === false)
+      throw new Error('Task execution requires a Git repository root with an initial commit');
     const commit = await git(project.repoPath, ['rev-parse', '--verify', 'HEAD^{commit}']);
     const id = randomUUID();
     const ref = `refs/ai-workspace/trials/${id}`;

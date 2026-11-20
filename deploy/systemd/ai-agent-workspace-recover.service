@@ -1,0 +1,7 @@
+[Unit]
+Description=Recover unresponsive AI Agent Workspace
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user try-restart ai-agent-workspace.service
+TimeoutStartSec=60
