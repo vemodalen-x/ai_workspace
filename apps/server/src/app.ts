@@ -1,3 +1,5 @@
+import { browseFolders } from '../../../packages/orchestration/local-folders.ts';
+import { NativeHistoryReader } from '../../../packages/orchestration/native-history.ts';
 import {
   ExternalSessions,
   externalSessionInput,
@@ -77,6 +79,35 @@ export async function createApp(
   });
   app.get('/api/bootstrap', async () => ({ token, version: '0.8.0' }));
   app.get('/api/snapshot', async () => service.snapshot());
+  const native = new NativeHistoryReader();
+  const registeredProject = (id: string) => {
+    const project = service.store.get('projects', id);
+    if (project.removedAt) throw new Error('Project not found');
+    return project;
+  };
+  app.get('/api/local-folders', async (req) => {
+    const query = z.object({ path: z.string().min(1).max(4096).optional() }).parse(req.query);
+    return browseFolders(query.path);
+  });
+  app.get<{ Params: { id: string } }>('/api/projects/:id/local-history', async (req) => {
+    const query = z.object({ refresh: z.enum(['true', 'false']).optional() }).parse(req.query);
+    return native.scan(registeredProject(req.params.id).repoPath, query.refresh === 'true');
+  });
+  app.get<{ Params: { id: string } }>('/api/projects/:id/history-task-tree', async (req) => {
+    const query = z.object({ refresh: z.enum(['true', 'false']).optional() }).parse(req.query);
+    return native.taskTree(registeredProject(req.params.id).repoPath, query.refresh === 'true');
+  });
+  app.get<{ Params: { id: string; session: string } }>(
+    '/api/projects/:id/local-history/:session',
+    async (req) =>
+      native.output(
+        registeredProject(req.params.id).repoPath,
+        z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .parse(req.params.session),
+      ),
+  );
   const external = new ExternalSessions(service.store);
   app.get<{ Params: { id: string } }>('/api/projects/:id/external-sessions', async (req) =>
     external.list(req.params.id),

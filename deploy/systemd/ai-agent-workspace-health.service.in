@@ -1,0 +1,11 @@
+[Unit]
+Description=Check AI Agent Workspace Web/API and database
+OnFailure=ai-agent-workspace-recover.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=@RELEASE@/current
+EnvironmentFile=@CONFIG@/service.env
+ExecCondition=/usr/bin/systemctl --user is-active --quiet ai-agent-workspace.service
+ExecStart=@NODE@ @RELEASE@/current/scripts/service-health.mjs
+TimeoutStartSec=15

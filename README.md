@@ -63,6 +63,9 @@ npm start
 - Codex / Claude Code 启动框支持模型下拉、自定义模型 ID 和 Provider default。Codex 列表来自控制端本机 CLI 缓存，Claude 使用本机 CLI 原生别名；列表不保证账户或远端节点有权访问。
 - Codex 已知模型显示缓存中支持的推理强度，参数随运行传递到本地或远端 worker。远端需要同步升级同版 worker。
 - 继续已有会话沿用原模型和推理强度；需要换模型时使用新的重跑会话。真实 Provider 执行仍需要明确勾选额度使用授权。
+  Linux 开机启动、退出登录后常驻、进程崩溃与健康检查恢复见 [本机常驻服务](docs/local-service.md)。
+
+项目区支持选择已有本地文件夹、只读查看 Codex / Claude Code 配置与历史，自动生成历史任务树，以及仅取消登记的安全移除。目录关联与读取范围见 [项目管理](docs/project-management.md)。
 
 ## 挂载已有 Claude Code 会话
 

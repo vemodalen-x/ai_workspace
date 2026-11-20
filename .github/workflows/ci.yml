@@ -29,6 +29,11 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+        env:
+          CODEX_HOME: ${{ runner.temp }}/workspace-codex
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/workspace-claude
+          WORKSPACE_EXTERNAL_SESSION_E2E: '1'
+          WORKSPACE_HISTORY_TREE_E2E: '1'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

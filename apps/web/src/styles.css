@@ -3212,3 +3212,140 @@ html[lang='zh-CN'] .page-heading h1 {
     width: 76px;
   }
 }
+
+.project-nav-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+.project-nav-row > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.project-nav-row > .project-remove {
+  width: 28px;
+  flex: 0 0 28px;
+  padding: 6px;
+  opacity: 0.65;
+}
+.project-nav-row > .project-remove:hover,
+.project-nav-row > .project-remove:focus-visible {
+  opacity: 1;
+  color: var(--red);
+}
+.folder-browser,
+.project-history {
+  min-width: 0;
+  margin-bottom: 16px;
+}
+.folder-browser code,
+.history-sources code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.folder-list {
+  max-height: 240px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+.folder-list button {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.project-history {
+  padding: 16px;
+}
+.project-history details {
+  padding: 8px 0;
+}
+.project-history summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.project-history pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+}
+.project-history label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.project-history select {
+  width: 100%;
+  min-width: 0;
+}
+.history-sources {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.history-sources small {
+  display: block;
+}
+.native-transcript {
+  max-height: 440px;
+  overflow: auto;
+}
+.native-transcript article {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.history-task-tree {
+  margin: 16px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.history-task-tree > ul {
+  max-height: 480px;
+  overflow: auto;
+}
+.history-task-tree ul {
+  list-style: none;
+  padding-left: 16px;
+}
+.history-task-tree > ul {
+  padding-left: 0;
+}
+.history-task-tree li {
+  padding: 8px 0 8px 8px;
+  border-left: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.history-task-tree summary {
+  display: list-item;
+}
+.history-task-tree b {
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.history-task-kind,
+.history-task-state {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0 8px;
+}
+.history-task-tree .text-button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.history-disclosure {
+  display: block;
+  width: 100%;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: transparent;
+}
+.history-disclosure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

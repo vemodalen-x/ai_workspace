@@ -65,6 +65,8 @@ export const taskInput = z.object({
   validationCommand: z.array(z.string().min(1).max(4000)).max(100).default([]),
 });
 export interface Project {
+  removedAt?: string;
+  executionReady?: boolean;
   id: string;
   name: string;
   repoPath: string;

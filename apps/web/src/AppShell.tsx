@@ -16,6 +16,7 @@ export function AppShell({
   queuedCount,
   connected,
   onImport,
+  onRemoveProject,
   onProject,
   selectTask,
   search,
@@ -38,6 +39,7 @@ export function AppShell({
   queuedCount: number;
   connected: boolean;
   onImport: () => void;
+  onRemoveProject: (project: Project) => void;
   onProject: (id: string) => void;
   selectTask: (task: Task) => void;
   search: string;
@@ -74,6 +76,7 @@ export function AppShell({
           runningCount,
           connected,
           onImport,
+          onRemoveProject,
           onProject,
           selectTask,
         }}

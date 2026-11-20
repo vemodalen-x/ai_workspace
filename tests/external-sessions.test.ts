@@ -158,7 +158,7 @@ test('transcript is bounded, redacted and excludes thinking/tool payloads and ot
   }
 });
 
-test('API requires local auth, rejects archived projects and preserves project with attached history', async () => {
+test('API requires local auth, rejects archived projects and removes only project registration with attached history', async () => {
   const f = await setup();
   const old = process.env.CLAUDE_CONFIG_DIR;
   process.env.CLAUDE_CONFIG_DIR = f.root;
@@ -202,7 +202,7 @@ test('API requires local auth, rejects archived projects and preserves project w
     );
     assert.equal(
       (await app.inject({ url: '/api/projects/project', method: 'DELETE', headers })).statusCode,
-      409,
+      200,
     );
     assert.equal(
       (await app.inject({ url: `/api/external-sessions/${id}`, method: 'DELETE', headers }))
