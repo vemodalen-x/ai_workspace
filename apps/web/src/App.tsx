@@ -49,6 +49,7 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 import { Focus } from './Focus.tsx';
+import { Monitor as MonitorPage } from './Monitor.tsx';
 import { ResultEvidence } from './ResultEvidence.tsx';
 import { api, useWorkspace } from './api.ts';
 import type { Task, Project, Session, Run, Approval } from '../../../packages/shared/index.ts';
@@ -644,6 +645,12 @@ export function App() {
           </>
         }
       >
+        {view === 'monitor' && (
+          <MonitorPage
+            search={search}
+            openProject={(projectId) => navigate({ view: 'project', projectId, search: '' })}
+          />
+        )}
         {view === 'focus' && (
           <Focus
             data={data}

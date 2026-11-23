@@ -91,6 +91,7 @@ export function AppShell({
                 ? (project?.name ?? tr('Projects'))
                 : (
                     {
+                      monitor: tr('Monitor'),
                       focus: tr('Focus inbox'),
                       dashboard: tr('Overview'),
                       sessions: tr('Sessions'),

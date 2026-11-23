@@ -1,4 +1,5 @@
 export const workspaceViews = [
+  'monitor',
   'focus',
   'dashboard',
   'project',

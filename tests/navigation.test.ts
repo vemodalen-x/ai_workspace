@@ -19,6 +19,8 @@ test('workspace deep links preserve task/session/tab and escape search without a
   };
   assert.deepEqual(parseRoute(routeHash(route)), route);
   assert.equal(parseRoute('#/unknown?tab=arbitrary&tree=anything').view, 'focus');
+  assert.equal(parseRoute('#/monitor?q=codex').view, 'monitor');
+  assert.equal(parseRoute('#/monitor?q=codex').search, 'codex');
   assert.equal(parseRoute('#/sessions?tab=arbitrary').tab, 'console');
   assert.equal(parseRoute('#/project?tree=graph').treeMode, 'graph');
   assert.equal(parseRoute('#/experiments?q=' + 'x'.repeat(1000)).search.length, 500);

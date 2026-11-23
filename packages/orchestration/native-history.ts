@@ -16,8 +16,8 @@ import type {
   NativeSession,
 } from '../shared/native-history.ts';
 
-const limit = 1024 * 1024;
-const inside = (root: string, path: string) => {
+export const limit = 1024 * 1024;
+export const inside = (root: string, path: string) => {
   const rel = relative(root, path);
   return (
     rel !== '..' &&
@@ -25,13 +25,20 @@ const inside = (root: string, path: string) => {
     !isAbsolute(rel)
   );
 };
-const state = (error: unknown) =>
+export const sourceState = (error: unknown) =>
   (error as NodeJS.ErrnoException).code === 'ENOENT'
     ? ('missing' as const)
     : ('unreadable' as const);
 
 // Reject symlinked records and replaced files. Never accept a client-supplied transcript path.
-async function readWindow(root: string, path: string, tail = false, max = limit) {
+export async function readWindow(
+  root: string,
+  path: string,
+  tail = false,
+  max = limit,
+  /** Line-aligned byte offset to read forward from (appended records). */
+  from?: number,
+) {
   if (!(await lstat(root)).isDirectory())
     throw new Error('History source symlinks are not supported');
   const canonicalRoot = await realpath(root);
@@ -53,25 +60,29 @@ async function readWindow(root: string, path: string, tail = false, max = limit)
       (await realpath(path)) !== canonical
     )
       throw new Error('History source changed or is not a regular file');
-    const size = Math.min(info.size, max),
-      start = tail ? info.size - size : 0;
+    const size = Math.max(0, Math.min(info.size - (from ?? 0), max)),
+      start = from ?? (tail ? info.size - size : 0);
     const buffer = Buffer.alloc(size);
     const { bytesRead } = await file.read(buffer, 0, size, start);
     const raw = buffer.subarray(0, bytesRead);
-    const discardedBytes = start ? raw.indexOf(10) + 1 : 0;
+    const discardedBytes = start && from === undefined ? raw.indexOf(10) + 1 : 0;
     const text = raw.subarray(discardedBytes).toString('utf8');
     return {
       text,
       offset: start + discardedBytes,
+      /** Byte offset just after the last complete line read, counted on raw bytes. */
+      lineEnd: start + raw.lastIndexOf(10) + 1,
       bytes: info.size,
       modifiedAt: info.mtime.toISOString(),
-      truncated: info.size > size,
+      dev: info.dev,
+      ino: info.ino,
+      truncated: from === undefined ? info.size > size : info.size > start + size,
     };
   } finally {
     await file.close();
   }
 }
-function records(text: string) {
+export function records(text: string) {
   const values: Record<string, unknown>[] = [];
   let skipped = 0;
   const lines = text.split('\n');
@@ -96,7 +107,7 @@ async function matches(cwd: unknown, project: string) {
     return false;
   }
 }
-async function metadataWindow(root: string, path: string, provider: NativeProvider) {
+export async function metadataWindow(root: string, path: string, provider: NativeProvider) {
   let data = await readWindow(root, path, false, 256 * 1024);
   const metadataOf = (text: string) => {
     const values = records(text).values;
@@ -113,6 +124,64 @@ async function metadataWindow(root: string, path: string, provider: NativeProvid
     metadata = metadataOf(data.text);
   }
   return { data, metadata, readBytes };
+}
+/** Read the redacted tail of one already-located session. Callers must verify identity first. */
+export async function sessionTranscript(session: {
+  root: string;
+  path: string;
+  provider: NativeProvider;
+  nativeId: string;
+}): Promise<NativeOutput> {
+  const data = await readWindow(session.root, session.path, true);
+  const parsed = records(data.text),
+    entries: NativeOutput['entries'] = [];
+  let clipped = false;
+  for (const record of parsed.values) {
+    if (session.provider === 'claude' && record.sessionId !== session.nativeId) continue;
+    const message =
+      session.provider === 'codex'
+        ? record.type === 'response_item'
+          ? record.payload
+          : null
+        : ['user', 'assistant'].includes(String(record.type))
+          ? record.message
+          : null;
+    if (!message || typeof message !== 'object') continue;
+    const m = message as { role?: string; content?: unknown };
+    const role = session.provider === 'codex' ? m.role : String(record.type);
+    if (!role || !['user', 'assistant'].includes(role)) continue;
+    const text =
+      typeof m.content === 'string'
+        ? m.content
+        : Array.isArray(m.content)
+          ? m.content
+              .flatMap((b) => {
+                if (!b || typeof b !== 'object') return [];
+                if (
+                  ['text', 'input_text', 'output_text'].includes(b.type) &&
+                  typeof b.text === 'string'
+                )
+                  return [b.text];
+                if (b.type === 'tool_use' && typeof b.name === 'string')
+                  return [`[Tool: ${b.name}]`];
+                return [];
+              })
+              .join('\n')
+          : '';
+    if (text) {
+      if (text.length > 32000) clipped = true;
+      entries.push({
+        role,
+        text: (redact(text) as string).slice(0, 32000),
+        timestamp: typeof record.timestamp === 'string' ? record.timestamp : undefined,
+      });
+    }
+  }
+  return {
+    entries: entries.slice(-200),
+    truncated: data.truncated || clipped || entries.length > 200,
+    skipped: parsed.skipped,
+  };
 }
 interface Located extends NativeSession {
   path: string;
@@ -155,7 +224,7 @@ export class NativeHistoryReader {
         truncated: data.truncated,
       };
     } catch (error) {
-      return { path, scope, state: state(error) };
+      return { path, scope, state: sourceState(error) };
     }
   }
   private async configs(project: string) {
@@ -220,7 +289,7 @@ export class NativeHistoryReader {
           try {
             entries = await readdir(path, { withFileTypes: true });
           } catch (error) {
-            source.state = path === root ? state(error) : 'partial';
+            source.state = path === root ? sourceState(error) : 'partial';
             if (path !== root) source.skipped++;
             return;
           }
@@ -414,55 +483,6 @@ export class NativeHistoryReader {
       (session.provider === 'codex' ? metadata?.id : metadata?.sessionId) !== session.nativeId
     )
       throw new Error('Local session no longer matches this project');
-    const data = await readWindow(session.root, session.path, true);
-    const parsed = records(data.text),
-      entries: NativeOutput['entries'] = [];
-    let clipped = false;
-    for (const record of parsed.values) {
-      if (session.provider === 'claude' && record.sessionId !== session.nativeId) continue;
-      const message =
-        session.provider === 'codex'
-          ? record.type === 'response_item'
-            ? record.payload
-            : null
-          : ['user', 'assistant'].includes(String(record.type))
-            ? record.message
-            : null;
-      if (!message || typeof message !== 'object') continue;
-      const m = message as { role?: string; content?: unknown };
-      const role = session.provider === 'codex' ? m.role : String(record.type);
-      if (!role || !['user', 'assistant'].includes(role)) continue;
-      const text =
-        typeof m.content === 'string'
-          ? m.content
-          : Array.isArray(m.content)
-            ? m.content
-                .flatMap((b) => {
-                  if (!b || typeof b !== 'object') return [];
-                  if (
-                    ['text', 'input_text', 'output_text'].includes(b.type) &&
-                    typeof b.text === 'string'
-                  )
-                    return [b.text];
-                  if (b.type === 'tool_use' && typeof b.name === 'string')
-                    return [`[Tool: ${b.name}]`];
-                  return [];
-                })
-                .join('\n')
-            : '';
-      if (text) {
-        if (text.length > 32000) clipped = true;
-        entries.push({
-          role,
-          text: (redact(text) as string).slice(0, 32000),
-          timestamp: typeof record.timestamp === 'string' ? record.timestamp : undefined,
-        });
-      }
-    }
-    return {
-      entries: entries.slice(-200),
-      truncated: data.truncated || clipped || entries.length > 200,
-      skipped: parsed.skipped,
-    };
+    return sessionTranscript(session);
   }
 }
