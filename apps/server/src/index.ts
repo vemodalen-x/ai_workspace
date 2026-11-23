@@ -26,7 +26,8 @@ async function close() {
 try {
   const workspace = (service = new Orchestrator(dataDir));
   await workspace.recoverMerges();
-  ({ app } = await createApp(workspace, {
+  let monitor: Awaited<ReturnType<typeof createApp>>['monitor'];
+  ({ app, monitor } = await createApp(workspace, {
     allowedOrigins: (process.env.WORKSPACE_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean),
   }));
   const address = await app.listen({
@@ -55,6 +56,9 @@ try {
       void workspace.tick().catch((e) => console.error('Scheduler:', e.message));
     }, 300),
   );
+  // Keep the native session index warm; refresh() is single-flight and read-only.
+  void monitor.refresh().catch((e) => console.error('Session monitor:', e.message));
+  timers.push(setInterval(() => void monitor.refresh().catch(() => {}), 15000));
   process.once('SIGINT', () => void close());
   process.once('SIGTERM', () => void close());
 } catch (error) {

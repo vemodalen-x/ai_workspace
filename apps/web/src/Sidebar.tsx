@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Settings,
   X,
+  Radar,
 } from 'lucide-react';
 import type { Project, Task } from '../../../packages/shared/index.ts';
 import type { WorkspaceView } from './navigation.ts';
@@ -66,6 +67,7 @@ export function Sidebar({
       <nav aria-label={tr('Main navigation')}>
         {(
           [
+            ['monitor', Radar, tr('Monitor')],
             ['focus', Zap, tr('Focus inbox')],
             ['project', FolderGit2, tr('Projects')],
             ['experiments', FlaskConical, tr('Experiments')],

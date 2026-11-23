@@ -79,6 +79,12 @@ npm start
 
 项目区支持选择已有本地文件夹、只读查看 Codex / Claude Code 配置与历史，自动生成历史任务树，以及仅取消登记的安全移除。目录关联与读取范围见 [项目管理](docs/project-management.md)。
 
+## 原生会话监控
+
+日常开发继续使用原生 Codex / Claude Code CLI 或 VS Code、PyCharm 等 IDE 插件。侧栏 **Monitor / 监控** 汇总本机所有原生会话：客户端类型、所属项目、轮次状态（进行中、等待输入、中断、错误）、活跃度，以及错误、卡住、未关联项目等告警，同时显示工作台任务需要处理的事项和失败的实验。
+
+监控只读：只读取 `~/.codex` 和 `~/.claude` 下的记录，不写入、不启动或接管进程，也不需要通过 Workspace 发起任务。详情页提供脱敏后的对话摘录和可复制的恢复命令（`codex resume` / `claude --resume`），由你在原终端执行。发现方式、增量同步、关联规则和尚未支持的范围见 [原生会话监控](docs/monitoring.md)。
+
 ## 挂载已有 Claude Code 会话
 
 在项目页面的 **Attached Claude sessions** 中输入原生 Claude session UUID，点击 **Attach session**。可以挂载从其他工作目录启动的本机会话；页面明确展示原目录，历史和新消息每四秒刷新。来源为 `$CLAUDE_CONFIG_DIR/projects`，默认 `~/.claude/projects`。例如 `ac19a74b-8674-4eb6-903a-34a2ba5c3b0c`。
@@ -286,6 +292,7 @@ docs/                    Architecture, data model, API, remote setup, limits
 ```
 
 - [Architecture](docs/architecture.md)
+- [Native session monitor](docs/monitoring.md)
 - [Implementation plan](docs/implementation-plan.md)
 - [Data model](docs/data-model.md)
 - [API contract](docs/api-contract.md)

@@ -1,3 +1,7 @@
+# Native session monitor
+
+The monitor indexes local Codex and Claude Code transcripts read-only. Sessions on remote workers are not scanned. Liveness comes from file writes rather than process checks, so a session whose process exited mid-turn shows as stalled for up to 24 hours. Tool-approval waits are not distinguishable from waiting for input because neither CLI records them reliably. The monitor cannot send messages, resume or stop sessions, assign unassigned sessions to projects, or send notifications. Formats of other tools such as Cursor are not read. Details: [monitoring](monitoring.md).
+
 # v0.8 command execution
 
 Command trials run on the controller in a fresh Git worktree per attempt. CPU and memory reservations coordinate scheduling. OS-level sandboxing, distributed training and automatic cleanup of trial worktrees are outside this implementation. A user-supplied dataset version identifies the declared data; the training program is responsible for loading and verifying it. Cross-trial comparisons require a matching project, group, dataset, nonempty dataset version, metric and unit. Measurements from failed attempts remain available.

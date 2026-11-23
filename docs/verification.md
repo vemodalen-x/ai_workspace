@@ -1,3 +1,21 @@
+# Native session monitor verification, 2026-11-23
+
+Linux, Node 24.22.3. The monitor only reads tool homes; no provider was started and no paid inference ran.
+
+- `npm run check`: PASS. TypeScript, ESLint, **105 core tests** (0 failed, 0 skipped) and production builds. Seven new tests in `tests/session-index.test.ts`:
+  - discovery of CLI, JetBrains/VS Code plugin, subagent and Claude sessions, with source contents and mtimes unchanged
+  - project association, liveness, stalled detection and alerts
+  - incremental refresh, symlink and byte-budget handling
+  - long turns keeping their state across appended reads, partial lines, and replaced files
+  - transcript redaction and identity checks
+  - briefing and attempt alerts
+  - API authentication and id validation
+- `npm run test:production`, `npm run format:check` and `git diff --check`: PASS.
+- Playwright with isolated `CODEX_HOME`/`CLAUDE_CONFIG_DIR`, `WORKSPACE_MONITOR_E2E=1`, `WORKSPACE_HISTORY_TREE_E2E=1` and a local Chromium 1243 executable: 30 passed, 1 skipped (the attached-session scenario has its own gate). The monitor scenario writes a CLI transcript, sees its project, client and in-progress turn, opens the transcript and resume command, appends `task_complete`, sees "Awaiting input", and confirms no Workspace task was created.
+- Real local homes (264 transcripts): a cold scan took about 1.5 s and the next refresh about 0.7 s while sessions were writing. Every session modified in the last 24 hours had a known turn state. Session content is not recorded here.
+
+Not verified: remote-worker transcripts, Windows/macOS tool homes, and IDE plugins other than the JetBrains and VS Code originators present locally.
+
 # v0.8.1 review and verification, 2026-11-15
 
 | Reproduction                                                                                                        | v0.8.0 (`d1cb0ea`)                                           | v0.8.1                                                                                                            |

@@ -122,6 +122,17 @@ Discovery uses direct `<UUID>.jsonl` files in project directories under `$CLAUDE
 
 Project pages poll the list and selected transcript every four seconds. Links can refer to sessions from a different working directory; the original cwd is displayed explicitly. Linked sessions have no managed execution status, resume, cancel, diff or merge controls.
 
+## Native session monitor
+
+Read-only, process-local index of native Codex / Claude Code transcripts from any client (terminal CLI, IDE plugins, SDK). See [monitoring](monitoring.md) for discovery, incremental sync and derivation rules. Nothing is written to tool homes or the database, and no provider process is started, resumed or stopped.
+
+| Method | Path                           | Behavior                                                                                                                                        |
+| ------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/monitor/overview`            | `MonitorOverview`: sources, totals, project health, up to 200 recent sessions plus every alerting session, and alerts. `?refresh=true` rescans. |
+| GET    | `/monitor/sessions/:id/output` | `id` is the 64-hex index id (400 otherwise, 404 if unknown). The native session id is re-checked before reading; a replaced file is rejected.   |
+
+Overview responses use an index at most 15 seconds old. Output uses the same bounded, redacted transcript reader as project history.
+
 ## Existing local folders and native history
 
 Project loading accepts any readable absolute local directory; no Git initialization or provider-data copying is performed. A canonical duplicate returns the existing registration. Removed folders restore the same project ID and Workspace history when loaded again. `executionReady=false` indicates history-only access until the selected folder is a Git repository root with an initial commit.

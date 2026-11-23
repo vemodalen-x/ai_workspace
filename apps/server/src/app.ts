@@ -1,5 +1,6 @@
 import { browseFolders } from '../../../packages/orchestration/local-folders.ts';
 import { NativeHistoryReader } from '../../../packages/orchestration/native-history.ts';
+import { SessionIndex } from '../../../packages/orchestration/session-index.ts';
 import {
   ExternalSessions,
   externalSessionInput,
@@ -37,7 +38,12 @@ const same = (a: string, b: string) =>
   Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export async function createApp(
   service: Orchestrator,
-  options: { token?: string; serveWeb?: boolean; allowedOrigins?: string[] } = {},
+  options: {
+    token?: string;
+    serveWeb?: boolean;
+    allowedOrigins?: string[];
+    monitor?: SessionIndex;
+  } = {},
 ) {
   const token = options.token ?? randomBytes(32).toString('hex');
   const app = Fastify({ logger: false, bodyLimit: 128 * 1024, requestTimeout: 30000 });
@@ -108,6 +114,20 @@ export async function createApp(
           .regex(/^[a-f0-9]{64}$/)
           .parse(req.params.session),
       ),
+  );
+  // Read-only monitor over native CLI / IDE transcripts. It never starts or controls them.
+  const monitor = options.monitor ?? new SessionIndex();
+  app.get('/api/monitor/overview', async (req) => {
+    const query = z.object({ refresh: z.enum(['true', 'false']).optional() }).parse(req.query);
+    return monitor.overview(service.snapshot(), { refresh: query.refresh === 'true' });
+  });
+  app.get<{ Params: { id: string } }>('/api/monitor/sessions/:id/output', async (req) =>
+    monitor.output(
+      z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .parse(req.params.id),
+    ),
   );
   const external = new ExternalSessions(service.store);
   app.get<{ Params: { id: string } }>('/api/projects/:id/external-sessions', async (req) =>
@@ -313,5 +333,5 @@ export async function createApp(
         : reply.sendFile('index.html'),
     );
   }
-  return { app, token };
+  return { app, token, monitor };
 }

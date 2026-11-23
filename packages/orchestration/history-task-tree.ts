@@ -3,7 +3,7 @@ import { redact } from '../agent-adapters/process.ts';
 import type { HistoryTaskNode, NativeSession } from '../shared/native-history.ts';
 
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 24);
-function textContent(content: unknown, skipContext = false): string {
+export function textContent(content: unknown, skipContext = false): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content) || content.some((b) => b?.type === 'tool_result')) return '';
   return content
@@ -17,7 +17,7 @@ function textContent(content: unknown, skipContext = false): string {
     )
     .join('\n');
 }
-function injected(text: string) {
+export function injected(text: string) {
   return /^(?:# AGENTS\.md instructions|<environment_context>|<user_instructions>|<permissions instructions>|<system-reminder>|<local-command-)/.test(
     text.trimStart(),
   );
