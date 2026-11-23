@@ -1,3 +1,20 @@
+# Native session monitor iteration, 2026-11-23
+
+Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.
+
+- Added Linux process association for Codex sessions. Cold scans now process changed files newest-first, and files deferred by the byte budget no longer raise a "source incomplete" alert.
+- Fixed the findings of an independent review of the first monitor commit, each with a regression test:
+  - resume offsets are counted on raw bytes, so invalid UTF-8 no longer shifts them
+  - a file rewritten under the same inode is detected by its first-line fingerprint
+  - slash-command, `!` shell and compaction-summary records no longer reopen a finished Claude turn
+  - removed roots drop their sessions
+  - the entry limit applies per source and keeps the newest folders
+  - the session detail resets per session
+  - manual refresh is single-click and shows errors
+- A check of real Claude Code 2.1 transcripts found no assistant record with a null `stop_reason`. There were 3,842 records: tool_use, end_turn, stop_sequence, max_tokens and refusal. The review's concern about null stop reasons does not apply to this version.
+- `npm run check`: PASS with **108 core tests**. `npm run test:production`, `npm run format:check` and `git diff --check`: PASS. Playwright under the same isolated setup as below: 30 passed, 1 skipped.
+- Real local homes: the process probe took about 34 ms and found 10 transcripts held open by `codex` processes. The first cold refresh already matched all 10, and every source stayed `available`. A dev server screenshot showed "10 sessions open in running processes" and the matching row indicators.
+
 # Native session monitor verification, 2026-11-23
 
 Linux, Node 24.22.3. The monitor only reads tool homes; no provider was started and no paid inference ran.

@@ -65,6 +65,7 @@ const alertKey: Record<MonitorAlert['kind'], MessageKey> = {
   session_error: 'Session recorded an error',
   session_stalled: 'Turn in progress with no new records',
   session_aborted: 'Turn interrupted',
+  session_ended: 'Process exited mid-turn',
   run_orphaned: 'Managed run outcome unknown',
   run_failed: 'Managed run needs review',
   attempt_failed: 'Experiment attempt failed',
@@ -73,7 +74,7 @@ const alertKey: Record<MonitorAlert['kind'], MessageKey> = {
   source_degraded: 'History source incomplete',
   unassigned_active: 'Active session outside registered projects',
 };
-type Filter = 'all' | 'active' | 'recent' | 'attention' | 'unassigned';
+type Filter = 'all' | 'active' | 'open' | 'recent' | 'attention' | 'unassigned';
 
 export function relativeTime(iso: string | undefined, now = Date.now()) {
   if (!iso) return '—';
@@ -83,6 +84,20 @@ export function relativeTime(iso: string | undefined, now = Date.now()) {
   if (seconds < 86400) return tr('{count} h ago', { count: Math.floor(seconds / 3600) });
   return tr('{count} d ago', { count: Math.floor(seconds / 86400) });
 }
+
+const stateOf = (s: MonitoredSession) =>
+  s.endedMidTurn
+    ? { tone: 'failed', label: tr('Process exited mid-turn') }
+    : s.stalled
+      ? { tone: 'pending', label: tr('Possibly stalled') }
+      : { tone: phaseTone[s.phase], label: tr(phaseKey[s.phase]) };
+const processText = (s: MonitoredSession) =>
+  s.process === 'attached'
+    ? tr('Held open by a running process')
+    : s.process === 'detached'
+      ? tr('No running process holds this session')
+      : undefined;
+const live = (s: MonitoredSession) => s.liveness === 'active' || s.process === 'attached';
 
 function Tone({ tone, label }: { tone: string; label: string }) {
   return (
@@ -106,6 +121,8 @@ export function Monitor({
   const [client, setClient] = useState('all');
   const [projectId, setProjectId] = useState('');
   const [selected, setSelected] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState('');
   const queryClient = useQueryClient();
   const overview = useQuery({
     queryKey: ['monitor-overview'],
@@ -129,7 +146,8 @@ export function Monitor({
     (s) =>
       (filter === 'all' ||
         (filter === 'active' && s.liveness === 'active') ||
-        (filter === 'recent' && s.liveness !== 'dormant') ||
+        (filter === 'open' && s.process === 'attached') ||
+        (filter === 'recent' && (s.liveness !== 'dormant' || s.process === 'attached')) ||
         (filter === 'attention' && attention.has(s.id)) ||
         (filter === 'unassigned' && s.association === 'unassigned')) &&
       (provider === 'all' || s.provider === provider) &&
@@ -160,7 +178,7 @@ export function Monitor({
     {
       label: tr('Turns in progress'),
       value: data.totals.working,
-      sub: tr('Active sessions whose last turn has not finished'),
+      sub: tr('Unfinished turns that are writing now or held by a running process'),
       icon: TerminalSquare,
       color: 'blue',
     },
@@ -197,21 +215,33 @@ export function Monitor({
         </div>
         <button
           className="secondary"
-          disabled={overview.isFetching}
-          onClick={() =>
-            void api<MonitorOverview>('/monitor/overview?refresh=true').then((fresh) =>
-              queryClient.setQueryData(['monitor-overview'], fresh),
-            )
-          }
+          disabled={refreshing}
+          onClick={() => {
+            setRefreshing(true);
+            setRefreshError('');
+            api<MonitorOverview>('/monitor/overview?refresh=true')
+              .then((fresh) => queryClient.setQueryData(['monitor-overview'], fresh))
+              .catch((error: Error) => setRefreshError(error.message))
+              .finally(() => setRefreshing(false));
+          }}
         >
           <RefreshCw size={15} /> {tr('Refresh')}
         </button>
       </div>
+      {refreshError && <p role="alert">{errorText(refreshError)}</p>}
       <p className="form-hint monitor-scan">
         {tr('Last scan {time}', { time: relativeTime(data.scannedAt) })}
+        <span>
+          {data.processesObserved
+            ? tr('{count} sessions open in running processes', { count: data.totals.attached })
+            : tr('Process state not observable on this system')}
+        </span>
         {data.sources.map((source) => (
           <span key={source.path} title={source.path}>
             {providerName(source.provider)} · {uiMessage(source.state)} · {source.files}
+            {source.pending
+              ? ' · ' + tr('{count} waiting for the next scan', { count: source.pending })
+              : ''}
           </span>
         ))}
       </p>
@@ -340,6 +370,7 @@ export function Monitor({
             >
               <option value="recent">{tr('Last 24 hours')}</option>
               <option value="active">{tr('Active now')}</option>
+              <option value="open">{tr('Open in a process')}</option>
               <option value="attention">{tr('Needs attention')}</option>
               <option value="unassigned">{tr('Unassigned')}</option>
               <option value="all">{tr('All')}</option>
@@ -389,7 +420,12 @@ export function Monitor({
         )}
       </section>
       {current && (
-        <SessionDetail session={current} projectName={projectName} close={() => setSelected('')} />
+        <SessionDetail
+          key={current.id}
+          session={current}
+          projectName={projectName}
+          close={() => setSelected('')}
+        />
       )}
     </div>
   );
@@ -409,11 +445,12 @@ function SessionRow({
   return (
     <div role="row" className={`monitor-row ${selected ? 'selected' : ''} ${s.liveness}`}>
       <span role="cell" className="monitor-state">
-        <span className={`connection-dot ${s.liveness === 'active' ? 'online' : ''}`} />
-        <Tone
-          tone={s.stalled ? 'pending' : phaseTone[s.phase]}
-          label={s.stalled ? tr('Possibly stalled') : tr(phaseKey[s.phase])}
+        <span
+          className={`connection-dot ${live(s) ? 'online' : ''}`}
+          title={processText(s)}
+          aria-label={processText(s)}
         />
+        <Tone {...stateOf(s)} />
       </span>
       <span role="cell" className="monitor-title">
         <b>{s.title || s.providerSessionId}</b>
@@ -465,11 +502,13 @@ function SessionDetail({
   const output = useQuery({
     queryKey: ['monitor-output', s.id],
     queryFn: () => api<NativeOutput>(`/monitor/sessions/${s.id}/output`),
-    refetchInterval: s.liveness === 'active' ? 5000 : false,
+    refetchInterval: live(s) ? 5000 : false,
   });
   const rows: [string, string | undefined][] = [
     [tr('Tool'), providerName(s.provider)],
     [tr('Client'), tr(clientKey[s.client]) + (s.clientDetail ? ` · ${s.clientDetail}` : '')],
+    [tr('Turn state'), stateOf(s).label],
+    [tr('Process'), processText(s)],
     [tr('Native session ID'), s.providerSessionId],
     [tr('Working directory'), s.cwd],
     [

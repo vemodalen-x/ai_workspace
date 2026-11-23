@@ -12,6 +12,7 @@ import {
   sourceState,
 } from './native-history.ts';
 import { injected, textContent } from './history-task-tree.ts';
+import { openTranscripts } from './process-probe.ts';
 import { redact } from '../agent-adapters/process.ts';
 import {
   buildMonitorOverview,
@@ -96,14 +97,25 @@ interface Progress {
 export interface SessionCursor {
   parsed: Parsed;
   progress: Progress;
+  /** Byte offset after the last complete line, so unfinished writes are re-read later. */
   offset: number;
   dev: number;
   ino: number;
+  head: string;
 }
 const appendLimit = 8 * limit;
 const recentWindow = 4 * limit;
 const own = (provider: NativeProvider, nativeId: string, r: Record<string, unknown>) =>
-  provider === 'codex' || (r.sessionId === nativeId && !r.isSidechain && !r.isMeta);
+  provider === 'codex' ||
+  (r.sessionId === nativeId &&
+    !r.isSidechain &&
+    !r.isMeta &&
+    // Compaction summaries are written as user records but do not start a turn.
+    !r.isCompactSummary &&
+    !r.isVisibleInTranscriptOnly);
+// Slash commands and `!` shell input are recorded as user text without a model turn.
+const localCommand =
+  /^<(?:command-(?:name|message|args)|local-command-|bash-(?:input|stdout|stderr))/;
 function requestOf(provider: NativeProvider, nativeId: string, r: Record<string, unknown>) {
   if (!own(provider, nativeId, r)) return '';
   if (provider === 'codex') {
@@ -112,7 +124,12 @@ function requestOf(provider: NativeProvider, nativeId: string, r: Record<string,
   }
   const m = r.message as { content?: unknown } | undefined;
   const text = r.type === 'user' ? textContent(m?.content, true) : '';
-  return text && !injected(text) && !text.startsWith('[Request interrupted') ? text : '';
+  return text &&
+    !injected(text) &&
+    !localCommand.test(text) &&
+    !text.startsWith('[Request interrupted')
+    ? text
+    : '';
 }
 /** Fold records into the turn state. Full and appended reads use the same rules. */
 function apply(
@@ -153,16 +170,19 @@ function apply(
     } else if (r.type === 'user') {
       const text = textContent((r.message as { content?: unknown } | undefined)?.content);
       if (text.startsWith('[Request interrupted')) set('aborted', r);
-      else set('working', r);
+      else if (!localCommand.test(text.trimStart())) set('working', r);
     } else if (r.type === 'system' && r.level === 'error') {
       p.errors++;
       set('error', r);
     }
   }
 }
-/** Byte offset just after the last complete line, so unfinished writes are re-read later. */
-const consumed = (data: { text: string; offset: number }) =>
-  data.offset + Buffer.byteLength(data.text.slice(0, data.text.lastIndexOf('\n') + 1));
+/** Leading bytes of a transcript; a different value means the path now holds another file. */
+const fingerprint = async (root: string, path: string) => {
+  // Up to the first newline, so a short file that is still growing keeps its fingerprint.
+  const { text } = await readWindow(root, path, false, 256, 0);
+  return text.includes('\n') ? text.slice(0, text.indexOf('\n')) : text;
+};
 const withProgress = (
   session: IndexedSession,
   p: Progress,
@@ -196,7 +216,8 @@ export async function parseSession(
       data.dev === previous.dev &&
       data.ino === previous.ino &&
       data.bytes >= previous.offset &&
-      !data.truncated
+      !data.truncated &&
+      (await fingerprint(root, path)) === previous.head
     ) {
       const progress = { ...previous.progress };
       apply(
@@ -210,7 +231,7 @@ export async function parseSession(
         cursor: {
           ...previous,
           progress,
-          offset: consumed(data),
+          offset: data.lineEnd,
           parsed: {
             ...previous.parsed,
             session: withProgress(previous.parsed.session, progress, data),
@@ -218,7 +239,7 @@ export async function parseSession(
         },
       };
     }
-    // Replaced, truncated or a very large append: rebuild from a fresh window.
+    // Replaced, rewritten, truncated or a very large append: rebuild from a fresh window.
   }
   const { data: head, metadata, readBytes } = await metadataWindow(root, path, provider);
   let bytesRead = readBytes;
@@ -259,9 +280,10 @@ export async function parseSession(
     cursor: {
       parsed: { root, path, session: withProgress(session, progress, tail) },
       progress,
-      offset: consumed(tail),
+      offset: tail.lineEnd,
       dev: tail.dev,
       ino: tail.ino,
+      head: await fingerprint(root, path),
     },
   };
 }
@@ -269,12 +291,16 @@ export async function parseSession(
 interface Entry {
   key: string;
   cursor?: SessionCursor;
+  /** Resolved path, compared with the targets of open file descriptors. */
+  real: string;
 }
 interface Options {
   /** Bytes that may be read per refresh before remaining changed files wait for the next one. */
   budget: number;
   maxFiles: number;
   maxAgeMs: number;
+  /** Transcripts held open by agent processes, or undefined when this cannot be observed. */
+  probe: () => Promise<Set<string> | undefined>;
 }
 
 /**
@@ -286,6 +312,7 @@ export class SessionIndex {
   private entries = new Map<string, Entry>();
   private titles = new Map<string, string>();
   private sources: MonitorSource[] = [];
+  private open?: Set<string>;
   private scannedAt?: string;
   private running?: Promise<void>;
   private options: Options;
@@ -296,7 +323,13 @@ export class SessionIndex {
     },
     options: Partial<Options> = {},
   ) {
-    this.options = { budget: 96 * limit, maxFiles: 10000, maxAgeMs: 15000, ...options };
+    this.options = {
+      budget: 96 * limit,
+      maxFiles: 10000,
+      maxAgeMs: 15000,
+      probe: () => openTranscripts(),
+      ...options,
+    };
   }
   /** Single-flight refresh; concurrent callers share one scan. */
   refresh(): Promise<void> {
@@ -308,11 +341,22 @@ export class SessionIndex {
     return this.scannedAt;
   }
   private async scan() {
-    let budget = this.options.budget,
-      seen = 0;
+    let budget = this.options.budget;
     const present = new Set<string>(),
       incomplete: string[] = [],
-      sources: MonitorSource[] = [];
+      sources: MonitorSource[] = [],
+      changed: {
+        source: MonitorSource;
+        root: string;
+        real: string;
+        path: string;
+        key: string;
+        mtimeMs: number;
+        archived: boolean;
+      }[] = [];
+    // Snapshot processes before reading files: a process that exits during the scan still
+    // counts as attached once, and a session it opens afterwards is still recently written.
+    const open = await this.options.probe().catch(() => undefined);
     for (const [provider, folder, depth] of [
       ['codex', 'sessions', 4],
       ['codex', 'archived_sessions', 4],
@@ -335,13 +379,20 @@ export class SessionIndex {
         if (!(await lstat(root)).isDirectory()) throw Object.assign(new Error(), { code: 'EPERM' });
       } catch (error) {
         source.state = sourceState(error);
-        incomplete.push(root);
+        // Keep earlier results only while a root is unreadable; a removed root clears them.
+        if (source.state !== 'missing') incomplete.push(root);
         continue;
       }
+      let seen = 0;
+      const real = await realpath(root).catch(() => root);
       const walk = async (dir: string, level: number): Promise<void> => {
         let items;
         try {
-          items = await readdir(dir, { withFileTypes: true });
+          // Date folders and rollout names sort chronologically: walk newest first so the
+          // per-source entry limit drops the oldest history.
+          items = (await readdir(dir, { withFileTypes: true })).sort((a, b) =>
+            b.name.localeCompare(a.name),
+          );
         } catch {
           source.skipped++;
           degrade();
@@ -367,10 +418,11 @@ export class SessionIndex {
           if (!item.isFile() || !item.name.endsWith('.jsonl')) continue;
           source.files++;
           present.add(path);
-          let key: string;
+          let key: string, mtimeMs: number;
           try {
             const info = await lstat(path);
             key = `${info.dev}:${info.ino}:${info.size}:${info.mtimeMs}`;
+            mtimeMs = info.mtimeMs;
           } catch {
             source.skipped++;
             degrade();
@@ -381,36 +433,57 @@ export class SessionIndex {
             if (!previous.cursor) source.skipped++;
             continue;
           }
-          if (budget <= 0) {
-            source.pending++;
-            degrade();
-            continue;
-          }
-          try {
-            const { cursor, bytesRead } = await parseSession(
-              provider,
-              root,
-              path,
-              folder === 'archived_sessions',
-              previous?.cursor,
-            );
-            budget -= bytesRead;
-            this.entries.set(path, { key, cursor });
-            if (!cursor) source.skipped++;
-          } catch {
-            this.entries.delete(path);
-            source.skipped++;
-            degrade();
-          }
+          changed.push({
+            source,
+            root,
+            real,
+            path,
+            key,
+            mtimeMs,
+            archived: folder === 'archived_sessions',
+          });
         }
       };
       await walk(root, 0);
+    }
+    // Newest first, so live sessions are never starved by a cold scan of old history. Files
+    // left over when the byte budget runs out are pending, not missing: they keep any
+    // previous result and are read on the next refresh.
+    changed.sort((a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path));
+    for (const file of changed) {
+      const { source, root, path } = file;
+      if (budget <= 0) {
+        source.pending++;
+        continue;
+      }
+      const previous = this.entries.get(path);
+      try {
+        const { cursor, bytesRead } = await parseSession(
+          source.provider,
+          root,
+          path,
+          file.archived,
+          previous?.cursor,
+        );
+        budget -= bytesRead;
+        this.entries.set(path, {
+          key: file.key,
+          cursor,
+          real: file.real + path.slice(root.length),
+        });
+        if (!cursor) source.skipped++;
+      } catch {
+        this.entries.delete(path);
+        source.skipped++;
+        if (source.state === 'available') source.state = 'partial';
+      }
     }
     for (const path of this.entries.keys())
       if (!present.has(path) && !incomplete.some((dir) => path.startsWith(dir + '/')))
         this.entries.delete(path);
     sources.push(...(await this.readTitles()));
     this.sources = sources;
+    this.open = open;
     this.scannedAt = new Date().toISOString();
   }
   // Codex keeps edited thread titles in state_N.sqlite. Read known columns only.
@@ -463,12 +536,20 @@ export class SessionIndex {
   async sessions(): Promise<IndexedSession[]> {
     const cache = new Map<string, string | undefined>();
     const result: IndexedSession[] = [];
-    for (const { cursor } of this.entries.values()) {
+    for (const { cursor, real } of this.entries.values()) {
       if (!cursor) continue;
       const s = cursor.parsed.session;
       const title = s.provider === 'codex' ? this.titles.get(s.providerSessionId) : undefined;
+      // Claude Code does not keep its transcript open, so only Codex sessions are classified.
+      const process =
+        s.provider === 'codex' && this.open
+          ? this.open.has(real)
+            ? ('attached' as const)
+            : ('detached' as const)
+          : undefined;
       result.push({
         ...s,
+        process,
         title: title || s.title,
         canonicalCwd: await this.canonical(s.cwd, cache),
       });
@@ -497,6 +578,7 @@ export class SessionIndex {
       sessions: await this.sessions(),
       sources: this.sources,
       scannedAt: this.scannedAt,
+      processesObserved: !!this.open,
       projectPaths,
       workspacePaths,
       clock,

@@ -70,6 +70,8 @@ export async function readWindow(
     return {
       text,
       offset: start + discardedBytes,
+      /** Byte offset just after the last complete line read, counted on raw bytes. */
+      lineEnd: start + raw.lastIndexOf(10) + 1,
       bytes: info.size,
       modifiedAt: info.mtime.toISOString(),
       dev: info.dev,

@@ -9,6 +9,8 @@ export type SessionPhase = 'working' | 'waiting' | 'aborted' | 'error' | 'unknow
 /** Derived from the transcript file's last write time. */
 export type SessionLiveness = 'active' | 'recent' | 'dormant';
 export type SessionAssociation = 'managed' | 'exact' | 'unassigned';
+/** attached: a local agent process holds the transcript open. Absent when not observable. */
+export type SessionProcess = 'attached' | 'detached';
 
 export interface IndexedSession {
   id: string;
@@ -29,6 +31,7 @@ export interface IndexedSession {
   phaseAt?: string;
   errors: number;
   archived: boolean;
+  process?: SessionProcess;
 }
 export interface MonitoredSession extends Omit<IndexedSession, 'canonicalCwd'> {
   liveness: SessionLiveness;
@@ -37,6 +40,8 @@ export interface MonitoredSession extends Omit<IndexedSession, 'canonicalCwd'> {
   managedSessionId?: string;
   suggestedProjectId?: string;
   stalled: boolean;
+  /** The turn never finished and no process holds the transcript any more. */
+  endedMidTurn: boolean;
   resumeCommand: string;
 }
 export interface MonitorSource {
@@ -65,6 +70,7 @@ export type MonitorAlertKind =
   | 'session_error'
   | 'session_stalled'
   | 'session_aborted'
+  | 'session_ended'
   | 'run_orphaned'
   | 'run_failed'
   | 'attempt_failed'
@@ -87,11 +93,14 @@ export interface MonitorAlert {
 export interface MonitorOverview {
   generatedAt: string;
   scannedAt?: string;
+  /** Whether agent processes could be inspected; otherwise `process` is always absent. */
+  processesObserved: boolean;
   sources: MonitorSource[];
   totals: {
     projects: number;
     sessions: number;
     active: number;
+    attached: number;
     working: number;
     waiting: number;
     attention: number;
@@ -122,6 +131,7 @@ export interface MonitorInput {
   sessions: IndexedSession[];
   sources: MonitorSource[];
   scannedAt?: string;
+  processesObserved?: boolean;
   /** Canonical repository path by project id. */
   projectPaths: Record<string, string>;
   /** Canonical managed worktree path → workspace id. */
@@ -197,9 +207,17 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       association = 'unassigned';
       projectId = undefined;
     }
+    const unfinished = session.phase === 'working' && !session.archived;
+    // Writes inside the active window may come from a process that started after the probe.
+    const endedMidTurn =
+      unfinished &&
+      session.process === 'detached' &&
+      idle > monitorLimits.activeMs &&
+      idle <= monitorLimits.recentMs;
     const stalled =
-      session.phase === 'working' &&
-      !session.archived &&
+      unfinished &&
+      !endedMidTurn &&
+      session.process !== 'detached' &&
       idle > monitorLimits.stalledMs &&
       idle <= monitorLimits.recentMs;
     return {
@@ -210,11 +228,16 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       managedSessionId,
       suggestedProjectId,
       stalled,
+      endedMidTurn,
       resumeCommand: resumeCommand(session),
     };
   });
   sessions.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt) || a.id.localeCompare(b.id));
 
+  /** Writing now, or mid-turn inside a process that still holds the session. */
+  const busy = (s: MonitoredSession) =>
+    s.liveness === 'active' || (s.process === 'attached' && s.phase === 'working');
+  const working = (s: MonitoredSession) => s.phase === 'working' && busy(s);
   const label = (s: MonitoredSession) => s.title || s.lastRequest || s.providerSessionId;
   for (const s of sessions) {
     if (s.archived || age(s.modifiedAt) > monitorLimits.recentMs) continue;
@@ -225,6 +248,13 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
         id: `session_error:${s.id}`,
         kind: 'session_error',
         severity: 'error',
+      });
+    else if (s.endedMidTurn)
+      alerts.push({
+        ...base,
+        id: `session_ended:${s.id}`,
+        kind: 'session_ended',
+        severity: 'warning',
       });
     else if (s.stalled)
       alerts.push({
@@ -241,7 +271,7 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
         kind: 'session_aborted',
         severity: 'info',
       });
-    if (s.association === 'unassigned' && s.liveness === 'active')
+    if (s.association === 'unassigned' && busy(s))
       alerts.push({
         ...base,
         id: `unassigned_active:${s.id}`,
@@ -314,7 +344,7 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
     const byState: Record<string, number> = {};
     for (const t of tasks) byState[t.state] = (byState[t.state] ?? 0) + 1;
     const active = runs.filter((r) => ['starting', 'running'].includes(r.state)).length;
-    const working = owned.filter((s) => s.phase === 'working' && s.liveness === 'active').length;
+    const workingCount = owned.filter(working).length;
     const approvals = state.approvals.filter(
       (a) =>
         a.state === 'pending' &&
@@ -327,7 +357,7 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       ? 'blocked'
       : projectAlerts.some((a) => a.severity === 'warning') || approvals || attention
         ? 'attention'
-        : active || owned.some((s) => s.liveness === 'active')
+        : active || owned.some(busy)
           ? 'active'
           : 'idle';
     return {
@@ -341,8 +371,8 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       attention,
       sessions: {
         total: owned.length,
-        active: owned.filter((s) => s.liveness === 'active').length,
-        working,
+        active: owned.filter(busy).length,
+        working: workingCount,
         recent: owned.filter((s) => s.liveness !== 'dormant').length,
       },
       alerts: projectAlerts.length,
@@ -365,23 +395,26 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
   return {
     generatedAt: clock.toISOString(),
     scannedAt: input.scannedAt,
+    processesObserved: !!input.processesObserved,
     sources: input.sources,
     totals: {
       projects: visible.length,
       sessions: sessions.length,
       active: sessions.filter((s) => s.liveness === 'active').length,
-      working: sessions.filter((s) => s.phase === 'working' && s.liveness === 'active').length,
+      attached: sessions.filter((s) => s.process === 'attached').length,
+      working: sessions.filter(working).length,
       waiting: sessions.filter((s) => s.phase === 'waiting' && s.liveness !== 'dormant').length,
       attention: attentionSessions.size,
-      unassignedActive: sessions.filter(
-        (s) => s.association === 'unassigned' && s.liveness === 'active',
-      ).length,
+      unassignedActive: sessions.filter((s) => s.association === 'unassigned' && busy(s)).length,
       runningRuns: state.runs.filter((r) => ['starting', 'running'].includes(r.state)).length,
       alerts: alerts.length,
     },
     projects: projectCards,
     sessions: sessions.filter(
-      (s, index) => index < monitorLimits.sessions || alerts.some((a) => a.sessionId === s.id),
+      (s, index) =>
+        index < monitorLimits.sessions ||
+        s.process === 'attached' ||
+        alerts.some((a) => a.sessionId === s.id),
     ),
     alerts: alerts.slice(0, 200),
     truncated: sessions.length > monitorLimits.sessions || alerts.length > 200,

@@ -11,11 +11,13 @@ import {
   stat,
   utimes,
   rm,
+  realpath,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SessionIndex } from '../packages/orchestration/session-index.ts';
+import { openTranscripts } from '../packages/orchestration/process-probe.ts';
 import {
   buildMonitorOverview,
   resumeCommand,
@@ -206,7 +208,10 @@ test('session index discovers CLI, IDE plugin, subagent and Claude sessions read
 
 test('overview associates exact folders and managed worktrees, suggests subfolders, derives liveness and alerts', async () => {
   const f = await fixture();
-  const index = new SessionIndex({ codex: f.codex, claude: f.claude });
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: async () => undefined },
+  );
   const clock = new Date('2026-11-20T12:00:00.000Z');
   const recent = new Date(clock.getTime() - 30_000),
     stale = new Date(clock.getTime() - 40 * 60_000),
@@ -286,10 +291,26 @@ test('overview associates exact folders and managed worktrees, suggests subfolde
 test('refresh is incremental, re-reads appended files, skips symlinks and resumes after the byte budget', async () => {
   const f = await fixture();
   const index = new SessionIndex({ codex: f.codex, claude: f.claude }, { budget: 1 });
-  await index.refresh();
-  // The first file consumes the tiny budget; the rest wait for later refreshes.
+  const newest = new Date(Date.now() + 60_000);
+  await utimes(f.files.claude, newest, newest);
+  const first = await index.overview(emptyState(), { refresh: true });
+  // The newest file consumes the tiny budget; the rest wait for later refreshes without
+  // being reported as a degraded source.
   let sessions = await index.sessions();
-  assert.equal(sessions.length, 1);
+  assert.deepEqual(
+    sessions.map((s) => s.providerSessionId),
+    ['claude-one'],
+  );
+  assert.deepEqual(
+    first.sources.map((s) => [s.state, s.pending]),
+    [
+      ['available', 5],
+      ['missing', 0],
+      ['available', 1],
+      ['available', 0],
+    ],
+  );
+  assert.ok(!first.alerts.some((a) => a.kind === 'source_degraded'));
   for (let i = 0; i < 10 && sessions.length < 7; i++) {
     await index.refresh();
     sessions = await index.sessions();
@@ -355,6 +376,140 @@ test('long turns keep their state across appended reads beyond the first window'
   await writeFile(f.files.ide, meta('codex-ide', f.project) + userText('Again'));
   await index.refresh();
   assert.equal(await phase(), 'unknown');
+});
+
+test('open transcript descriptors separate long-running turns from processes that exited mid-turn', async () => {
+  const f = await fixture();
+  const proc = join(f.root, 'proc');
+  const fakeProcess = async (pid: string, comm: string, target: string) => {
+    await mkdir(join(proc, pid, 'fd'), { recursive: true });
+    await writeFile(join(proc, pid, 'comm'), comm + '\n');
+    await symlink(target, join(proc, pid, 'fd', '3'));
+  };
+  await fakeProcess('100', 'codex', await realpath(f.files.ide));
+  // Other programs holding a transcript (an editor, tail -f) do not count.
+  await fakeProcess('200', 'less', await realpath(f.files.vscode));
+  await mkdir(join(proc, 'self'));
+  const clock = new Date('2026-11-20T12:00:00.000Z');
+  const quiet = new Date(clock.getTime() - 40 * 60_000);
+  for (const file of Object.values(f.files)) await utimes(file, quiet, quiet);
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: () => openTranscripts(proc) },
+  );
+  let overview = await index.overview(emptyState(), { clock, refresh: true });
+  const by = (id: string) => overview.sessions.find((s) => s.providerSessionId === id)!;
+  assert.equal(overview.processesObserved, true);
+  assert.equal(by('codex-ide').process, 'attached');
+  assert.equal(by('codex-vscode').process, 'detached');
+  assert.equal(by('claude-one').process, undefined, 'Claude Code does not keep files open');
+  // A silent turn inside a live process may be waiting on a command or approval.
+  assert.equal(by('codex-ide').stalled, true);
+  assert.equal(by('codex-ide').endedMidTurn, false);
+  assert.equal(overview.totals.attached, 1);
+  assert.equal(overview.totals.working, 1, 'held turns count even after 2 quiet minutes');
+  assert.equal(by('claude-one').stalled, true, 'unobservable sessions keep the write-time rule');
+
+  await rm(join(proc, '100'), { recursive: true });
+  overview = await index.overview(emptyState(), { clock, refresh: true });
+  assert.equal(by('codex-ide').process, 'detached');
+  assert.equal(by('codex-ide').endedMidTurn, true);
+  assert.equal(by('codex-ide').stalled, false);
+  assert.ok(overview.alerts.some((a) => a.kind === 'session_ended' && a.severity === 'warning'));
+  assert.ok(!overview.alerts.some((a) => a.id === 'session_stalled:' + by('codex-ide').id));
+  assert.equal(overview.totals.working, 0);
+
+  const unobserved = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: async () => undefined },
+  );
+  overview = await unobserved.overview(emptyState(), { clock, refresh: true });
+  assert.equal(overview.processesObserved, false);
+  assert.equal(by('codex-ide').process, undefined);
+  assert.equal(by('codex-ide').stalled, true);
+  assert.equal(await openTranscripts(join(f.root, 'missing')), undefined);
+});
+
+test('offsets count raw bytes, rewritten files are re-identified and non-turn Claude records keep the phase', async () => {
+  const f = await fixture();
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: async () => undefined },
+  );
+  await index.refresh();
+  const find = async (id: string) =>
+    (await index.sessions()).find((s) => s.providerSessionId === id);
+  // An invalid byte decodes to U+FFFD (3 bytes); the resume offset must not drift past it.
+  await appendFile(
+    f.files.cli,
+    Buffer.concat([Buffer.from('{"bad":"'), Buffer.from([0xff]), Buffer.from('"}\n')]),
+  );
+  await index.refresh();
+  await appendFile(f.files.cli, event('task_started', '2026-11-20T10:10:00.000Z'));
+  await index.refresh();
+  assert.equal((await find('codex-cli'))?.phase, 'working');
+
+  // Same path and inode, different content that is at least as large: parsed from scratch.
+  const content = await readFile(f.files.managed, 'utf8');
+  const replacement = meta('codex-other', f.project) + userText('Other '.repeat(80));
+  assert.ok(Buffer.byteLength(replacement) >= Buffer.byteLength(content));
+  await writeFile(f.files.managed, replacement);
+  await index.refresh();
+  assert.equal(await find('codex-managed'), undefined);
+  assert.equal((await find('codex-other'))?.title?.startsWith('Other'), true);
+
+  // Slash commands, shell input and compaction summaries are not model turns or requests.
+  const claude = (extra: Record<string, unknown>, content: string) =>
+    line({
+      type: 'user',
+      sessionId: 'claude-two',
+      timestamp: '2026-11-20T10:20:00.000Z',
+      message: { role: 'user', content },
+      ...extra,
+    });
+  await appendFile(
+    f.files.claudeError,
+    line({
+      type: 'assistant',
+      sessionId: 'claude-two',
+      message: { role: 'assistant', stop_reason: 'end_turn', content: [] },
+    }) +
+      claude({}, '<command-name>/model</command-name>') +
+      claude({}, '<local-command-stdout>Set model</local-command-stdout>') +
+      claude({}, '<bash-input>ls</bash-input>') +
+      claude(
+        { isCompactSummary: true, isVisibleInTranscriptOnly: true },
+        'Summary of earlier work',
+      ),
+  );
+  await index.refresh();
+  const two = await find('claude-two');
+  assert.equal(two?.phase, 'waiting');
+  assert.equal(two?.lastRequest, 'Try again');
+
+  // A removed root drops its sessions instead of keeping stale entries.
+  await rm(join(f.claude, 'projects'), { recursive: true });
+  await index.refresh();
+  assert.equal(await find('claude-one'), undefined);
+});
+
+test('the entry limit applies per source and keeps the newest Codex days', async () => {
+  const f = await fixture();
+  const older = join(f.codex, 'sessions/2026/10/01');
+  await mkdir(older, { recursive: true });
+  for (let i = 0; i < 6; i++)
+    await writeFile(join(older, `rollout-old-${i}.jsonl`), meta(`codex-old-${i}`, f.project));
+  // sessions/2026/{11,10} → 11/20 → 5 files fill a budget of 10 entries per source.
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { maxFiles: 10, probe: async () => undefined },
+  );
+  const overview = await index.overview(emptyState(), { refresh: true });
+  const ids = overview.sessions.map((s) => s.providerSessionId);
+  assert.ok(ids.includes('codex-cli') && ids.includes('codex-ide'));
+  assert.ok(ids.includes('claude-one') && ids.includes('claude-two'));
+  assert.ok(ids.filter((id) => id.startsWith('codex-old')).length < 6);
+  assert.equal(overview.sources[0].state, 'partial');
 });
 
 test('monitor output is redacted, bound to indexed ids and rejects replaced transcripts', async () => {

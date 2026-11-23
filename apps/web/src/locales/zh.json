@@ -914,7 +914,6 @@
   "Active now": "当前活跃",
   "Active session outside registered projects": "活跃会话不在已登记项目中",
   "Active sessions": "活跃会话",
-  "Active sessions whose last turn has not finished": "最近一轮尚未结束的活跃会话",
   "Alerts": "告警",
   "All": "全部",
   "All clients": "全部客户端",
@@ -994,5 +993,15 @@
   "{count} min ago": "{count} 分钟前",
   "{count} min without new records": "已 {count} 分钟无新记录",
   "{count} runs": "{count} 个运行",
-  "{done}/{total} tasks completed": "已完成 {done}/{total} 个任务"
+  "{done}/{total} tasks completed": "已完成 {done}/{total} 个任务",
+  "Process exited mid-turn": "进程在轮次中途退出",
+  "Held open by a running process": "仍由运行中的进程打开",
+  "No running process holds this session": "没有运行中的进程持有该会话",
+  "Unfinished turns that are writing now or held by a running process": "正在写入或仍由运行中进程持有的未完成轮次",
+  "{count} sessions open in running processes": "{count} 个会话由运行中的进程打开",
+  "Process state not observable on this system": "当前系统无法观测进程状态",
+  "Open in a process": "进程中打开",
+  "Turn state": "轮次状态",
+  "Process": "进程",
+  "{count} waiting for the next scan": "{count} 个等待下次扫描"
 }

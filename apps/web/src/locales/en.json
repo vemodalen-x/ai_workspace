@@ -914,7 +914,6 @@
   "Active now": "Active now",
   "Active session outside registered projects": "Active session outside registered projects",
   "Active sessions": "Active sessions",
-  "Active sessions whose last turn has not finished": "Active sessions whose last turn has not finished",
   "Alerts": "Alerts",
   "All": "All",
   "All clients": "All clients",
@@ -994,5 +993,15 @@
   "{count} min ago": "{count} min ago",
   "{count} min without new records": "{count} min without new records",
   "{count} runs": "{count} runs",
-  "{done}/{total} tasks completed": "{done}/{total} tasks completed"
+  "{done}/{total} tasks completed": "{done}/{total} tasks completed",
+  "Process exited mid-turn": "Process exited mid-turn",
+  "Held open by a running process": "Held open by a running process",
+  "No running process holds this session": "No running process holds this session",
+  "Unfinished turns that are writing now or held by a running process": "Unfinished turns that are writing now or held by a running process",
+  "{count} sessions open in running processes": "{count} sessions open in running processes",
+  "Process state not observable on this system": "Process state not observable on this system",
+  "Open in a process": "Open in a process",
+  "Turn state": "Turn state",
+  "Process": "Process",
+  "{count} waiting for the next scan": "{count} waiting for the next scan"
 }
