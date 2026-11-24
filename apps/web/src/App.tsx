@@ -13,6 +13,7 @@ import { useWorkspaceRoute } from './useWorkspaceRoute.ts';
 import type { WorkspaceView } from './navigation.ts';
 import { Badge } from './Badge.tsx';
 import { lazy, Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ExperimentFields, readExperiment } from './ExperimentFields.tsx';
 import React, { useEffect, useState, type FormEvent } from 'react';
 import {
@@ -49,7 +50,12 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 import { Focus } from './Focus.tsx';
-import { Monitor as MonitorPage } from './Monitor.tsx';
+import {
+  alertCount,
+  Monitor as MonitorPage,
+  monitorOverviewQuery,
+  useAlertNotifications,
+} from './Monitor.tsx';
 import { ResultEvidence } from './ResultEvidence.tsx';
 import { api, useWorkspace } from './api.ts';
 import type { Task, Project, Session, Run, Approval } from '../../../packages/shared/index.ts';
@@ -67,7 +73,7 @@ const Compute = lazy(async () => ({ default: (await import('./Compute.tsx')).Com
 const DependencyGraph = lazy(() => import('./DependencyGraph.tsx'));
 const TerminalOutput = lazy(() => import('./TerminalOutput.tsx'));
 type Modal =
-  | { kind: 'project' }
+  | { kind: 'project'; repoPath?: string }
   | { kind: 'task'; task?: Task; parentId?: string; experiment?: boolean }
   | { kind: 'launch'; task: Task; sessionId?: string }
   | { kind: 'node' }
@@ -84,8 +90,23 @@ const short = (id?: string) => id?.slice(0, 8) ?? '—';
 export function App() {
   useLocale();
   const { data, error, isLoading, events, connected, refresh } = useWorkspace();
+  const [notifications, setNotifications] = usePreference('aw.monitorNotifications', false);
+  // Keeps the Monitor alert badge current while other views are open, and keeps polling in a
+  // background tab only when desktop notifications are on.
+  const monitor = useQuery({
+    ...monitorOverviewQuery,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: notifications,
+    enabled: !!data,
+  });
   const { route, navigate } = useWorkspaceRoute();
   const { view, projectId, taskId, sessionId, treeMode, tab, search } = route;
+  // Re-evaluated on each overview; the visible Monitor page already shows new alerts.
+  useAlertNotifications(
+    monitor.data,
+    notifications,
+    view === 'monitor' && document.visibilityState === 'visible',
+  );
   const setView = (view: WorkspaceView) => navigate({ view, search: '' });
   const setTab = (tab: string) => navigate({ tab });
   const setTreeMode = (treeMode: 'tree' | 'graph') => navigate({ treeMode });
@@ -351,6 +372,7 @@ export function App() {
         taskId={taskId}
         runningCount={running.length}
         queuedCount={queued.length}
+        monitorAlerts={alertCount(monitor.data)}
         connected={connected}
         onImport={() => setModal({ kind: 'project' })}
         onRemoveProject={removeProject}
@@ -649,6 +671,9 @@ export function App() {
           <MonitorPage
             search={search}
             openProject={(projectId) => navigate({ view: 'project', projectId, search: '' })}
+            registerFolder={(repoPath) => setModal({ kind: 'project', repoPath })}
+            notifications={notifications}
+            setNotifications={setNotifications}
           />
         )}
         {view === 'focus' && (
@@ -1789,7 +1814,7 @@ export function App() {
           close={() => !busy && setModal(null)}
         >
           <form onSubmit={(e) => void submitModal(e)}>
-            {modal.kind === 'project' && <ProjectFolderForm />}
+            {modal.kind === 'project' && <ProjectFolderForm initialPath={modal.repoPath} />}
             {modal.kind === 'task' && (
               <>
                 <p className="form-hint">

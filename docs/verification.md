@@ -1,3 +1,24 @@
+# Native session progress and notifications, 2026-11-24
+
+Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.
+
+- Sessions report what is running now: the latest tool call of the current turn that has no result yet, paired by Codex `call_id` and Claude `tool_use.id`, plus the latest `update_plan` / `TodoWrite` progress. Finished or interrupted turns clear the running call; plan step text is redacted.
+- A Claude turn blocked on `AskUserQuestion` / `ExitPlanMode` is shown as waiting for an answer. It raises a `session_needs_answer` warning instead of being reported as stalled.
+- Opt-in browser desktop notifications for new warning/error alerts while the Monitor page is not in view. A background tab keeps polling only when notifications are on.
+- Real Codex records rule out the same signal for Codex: all 33 `request_user_input_async` calls received their output within 0.26 s, so a pending call does not mean the agent is waiting. Approval waits stay indistinguishable from running tools.
+- Real local homes (counts only): 1 of 2 in-progress sessions had a running tool. None of the 68 sessions written in the last 7 days had a plan in its read window; the newest Codex `update_plan` is 77 days old, and Claude Code 2.1 records contain no `TodoWrite`.
+- `npm run check`: PASS with **110 core tests**, including a new test for running tools, plan progress, sidechain exclusion, redaction and the stalled-versus-waiting rule. `npm run test:production`, `npm run format:check` and `git diff --check`: PASS. Playwright under the isolated setup: 32 passed, 1 skipped. The new e2e test covers the running tool, plan text, the waiting-for-answer state and the notification shown for a new alert, using a stubbed browser Notification.
+
+# Native session monitor refinements, 2026-11-24
+
+Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.
+
+- Sessions now report the model of the latest turn and the context used by the latest model request: Codex `token_count` (with its context window), Claude `usage` (tokens only). Sidechain and `<synthetic>` API-error records are ignored. When a long final turn pushes the Codex turn context out of the tail window, the model comes from the head window. A regression test fails without this fallback.
+- An unassigned session's detail offers **Register folder as project**. It opens the existing import form with the path and name filled in and only writes the Workspace database. The sidebar Monitor entry shows the warning and error alert count, shared with the page through one query cache, as an accessible description.
+- A count of local Codex record types found 14 `event_msg` types and no approval-request event, so approval waits stay unsupported.
+- `npm run check`: PASS with **109 core tests**. `npm run test:production`, `npm run format:check` and `git diff --check`: PASS. Playwright under the isolated setup: 31 passed, 1 skipped. The new monitor e2e test covers model and context display, the alert badge, and registering the folder.
+- Real local homes (counts only): all 53 Codex sessions written in the last 7 days have a model and context usage (the highest at 91% of the window). 12 of 15 Claude sessions have both; the other 3 contain no assistant record. A full cold refresh took about 2 s.
+
 # Native session monitor iteration, 2026-11-23
 
 Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.

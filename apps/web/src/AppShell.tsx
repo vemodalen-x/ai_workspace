@@ -14,6 +14,7 @@ export function AppShell({
   taskId,
   runningCount,
   queuedCount,
+  monitorAlerts,
   connected,
   onImport,
   onRemoveProject,
@@ -37,6 +38,7 @@ export function AppShell({
   taskId: string;
   runningCount: number;
   queuedCount: number;
+  monitorAlerts: number;
   connected: boolean;
   onImport: () => void;
   onRemoveProject: (project: Project) => void;
@@ -74,6 +76,7 @@ export function AppShell({
           tasks,
           taskId,
           runningCount,
+          monitorAlerts,
           connected,
           onImport,
           onRemoveProject,
