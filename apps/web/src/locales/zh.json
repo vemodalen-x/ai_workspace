@@ -1003,5 +1003,10 @@
   "Open in a process": "进程中打开",
   "Turn state": "轮次状态",
   "Process": "进程",
-  "{count} waiting for the next scan": "{count} 个等待下次扫描"
+  "{count} waiting for the next scan": "{count} 个等待下次扫描",
+  "Context in use": "已用上下文",
+  "{used} of {window} tokens ({percent}%)": "{used} / {window} tokens（{percent}%）",
+  "{used} tokens": "{used} tokens",
+  "This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.": "该目录尚未登记为项目。登记只会新增一条 Workspace 记录，不会改动目录和会话。",
+  "Register folder as project": "将目录登记为项目"
 }

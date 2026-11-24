@@ -1003,5 +1003,10 @@
   "Open in a process": "Open in a process",
   "Turn state": "Turn state",
   "Process": "Process",
-  "{count} waiting for the next scan": "{count} waiting for the next scan"
+  "{count} waiting for the next scan": "{count} waiting for the next scan",
+  "Context in use": "Context in use",
+  "{used} of {window} tokens ({percent}%)": "{used} of {window} tokens ({percent}%)",
+  "{used} tokens": "{used} tokens",
+  "This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.": "This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.",
+  "Register folder as project": "Register folder as project"
 }

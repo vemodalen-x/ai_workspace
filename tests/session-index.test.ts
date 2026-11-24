@@ -493,6 +493,88 @@ test('offsets count raw bytes, rewritten files are re-identified and non-turn Cl
   assert.equal(await find('claude-one'), undefined);
 });
 
+test('the latest model and context usage come from turn records, not sidechains or API errors', async () => {
+  const f = await fixture();
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: async () => undefined },
+  );
+  await index.refresh();
+  const find = async (id: string) =>
+    (await index.sessions()).find((s) => s.providerSessionId === id);
+  const usage = (total: number, window?: number) =>
+    line({
+      timestamp: '2026-11-20T10:30:00.000Z',
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: {
+          total_token_usage: { total_tokens: total * 3 },
+          last_token_usage: { input_tokens: total - 100, output_tokens: 100, total_tokens: total },
+          model_context_window: window,
+        },
+      },
+    });
+  await appendFile(
+    f.files.cli,
+    line({ type: 'turn_context', payload: { model: 'gpt-test', cwd: f.project } }) +
+      usage(64000, 256000) +
+      // Rate-limit-only updates carry no usage and keep the previous value.
+      line({ type: 'event_msg', payload: { type: 'token_count', info: null } }),
+  );
+  await index.refresh();
+  const cli = await find('codex-cli');
+  assert.equal(cli?.model, 'gpt-test');
+  assert.deepEqual(cli?.context, { tokens: 64000, window: 256000 });
+
+  const assistant = (extra: Record<string, unknown>, model: string, input: number) =>
+    line({
+      type: 'assistant',
+      sessionId: 'claude-two',
+      timestamp: '2026-11-20T10:30:00.000Z',
+      message: {
+        role: 'assistant',
+        model,
+        stop_reason: 'end_turn',
+        content: [],
+        usage: {
+          input_tokens: input,
+          cache_creation_input_tokens: 1000,
+          cache_read_input_tokens: 20000,
+          output_tokens: 500,
+        },
+      },
+      ...extra,
+    });
+  await appendFile(
+    f.files.claudeError,
+    assistant({}, 'claude-test', 10) +
+      assistant({ isSidechain: true }, 'claude-side', 90000) +
+      assistant({ isApiErrorMessage: true }, '<synthetic>', 0),
+  );
+  await index.refresh();
+  const two = await find('claude-two');
+  assert.equal(two?.model, 'claude-test');
+  assert.deepEqual(two?.context, { tokens: 21510 });
+
+  // The model stays known when the last turn context is older than the tail window.
+  const long = join(f.codex, 'sessions/2026/11/20/rollout-long-turn.jsonl');
+  await writeFile(
+    long,
+    meta('codex-long-model', f.project) +
+      line({ type: 'turn_context', payload: { model: 'gpt-head' } }) +
+      event('task_started') +
+      userText('x'.repeat(400 * 1024)) +
+      event('agent_message'),
+  );
+  const old = new Date(Date.now() - 2 * 86_400_000);
+  await utimes(long, old, old);
+  await index.refresh();
+  const longTurn = await find('codex-long-model');
+  assert.equal(longTurn?.model, 'gpt-head');
+  assert.equal(longTurn?.context, undefined);
+});
+
 test('the entry limit applies per source and keeps the newest Codex days', async () => {
   const f = await fixture();
   const older = join(f.codex, 'sessions/2026/10/01');

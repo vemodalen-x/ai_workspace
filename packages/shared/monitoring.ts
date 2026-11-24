@@ -32,6 +32,15 @@ export interface IndexedSession {
   errors: number;
   archived: boolean;
   process?: SessionProcess;
+  /** Model named by the most recent turn. */
+  model?: string;
+  /** Context occupied by the most recent model request. */
+  context?: SessionContext;
+}
+export interface SessionContext {
+  tokens: number;
+  /** Context window reported by the tool; Claude Code does not record it. */
+  window?: number;
 }
 export interface MonitoredSession extends Omit<IndexedSession, 'canonicalCwd'> {
   liveness: SessionLiveness;

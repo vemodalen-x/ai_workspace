@@ -26,6 +26,7 @@ export function Sidebar({
   tasks,
   taskId,
   runningCount,
+  monitorAlerts,
   connected,
   onImport,
   onRemoveProject,
@@ -39,6 +40,8 @@ export function Sidebar({
   tasks: Task[];
   taskId: string;
   runningCount: number;
+  /** Warning and error alerts from the read-only monitor. */
+  monitorAlerts: number;
   connected: boolean;
   onImport: () => void;
   onRemoveProject: (project: Project) => void;
@@ -80,6 +83,9 @@ export function Sidebar({
           <button
             key={id}
             aria-label={label}
+            aria-describedby={
+              id === 'monitor' && monitorAlerts > 0 ? 'nav-monitor-alerts' : undefined
+            }
             title={label}
             className={view === id ? 'active' : ''}
             aria-current={view === id ? 'page' : undefined}
@@ -89,6 +95,14 @@ export function Sidebar({
             {label}
             {id === 'sessions' && runningCount > 0 ? (
               <span className="nav-count">{runningCount}</span>
+            ) : null}
+            {id === 'monitor' && monitorAlerts > 0 ? (
+              <span className="nav-count alert">
+                {monitorAlerts}
+                <span id="nav-monitor-alerts" hidden>
+                  {tr('{count} alerts', { count: monitorAlerts })}
+                </span>
+              </span>
             ) : null}
           </button>
         ))}

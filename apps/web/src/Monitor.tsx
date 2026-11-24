@@ -6,6 +6,7 @@ import {
   Copy,
   Eye,
   FolderGit2,
+  FolderPlus,
   MessagesSquare,
   RefreshCw,
   TerminalSquare,
@@ -74,6 +75,29 @@ const alertKey: Record<MonitorAlert['kind'], MessageKey> = {
   source_degraded: 'History source incomplete',
   unassigned_active: 'Active session outside registered projects',
 };
+/** Shared with the sidebar badge so both read one cached overview. */
+export const monitorOverviewQuery = {
+  queryKey: ['monitor-overview'],
+  queryFn: () => api<MonitorOverview>('/monitor/overview'),
+};
+export const alertCount = (data?: MonitorOverview) =>
+  data?.alerts.filter((a) => a.severity !== 'info').length ?? 0;
+const tokens = (value: number) =>
+  value >= 1_000_000
+    ? `${(value / 1_000_000).toFixed(1)}M`
+    : value >= 1000
+      ? `${Math.round(value / 1000)}k`
+      : String(value);
+const contextText = ({ context }: MonitoredSession) =>
+  !context
+    ? undefined
+    : context.window
+      ? tr('{used} of {window} tokens ({percent}%)', {
+          used: tokens(context.tokens),
+          window: tokens(context.window),
+          percent: Math.min(100, Math.round((context.tokens / context.window) * 100)),
+        })
+      : tr('{used} tokens', { used: tokens(context.tokens) });
 type Filter = 'all' | 'active' | 'open' | 'recent' | 'attention' | 'unassigned';
 
 export function relativeTime(iso: string | undefined, now = Date.now()) {
@@ -111,9 +135,12 @@ function Tone({ tone, label }: { tone: string; label: string }) {
 export function Monitor({
   search,
   openProject,
+  registerFolder,
 }: {
   search: string;
   openProject: (projectId: string) => void;
+  /** Opens the project import form for a session folder; only writes the Workspace database. */
+  registerFolder: (path: string) => void;
 }) {
   useLocale();
   const [filter, setFilter] = useState<Filter>('recent');
@@ -124,11 +151,7 @@ export function Monitor({
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState('');
   const queryClient = useQueryClient();
-  const overview = useQuery({
-    queryKey: ['monitor-overview'],
-    queryFn: () => api<MonitorOverview>('/monitor/overview'),
-    refetchInterval: 10000,
-  });
+  const overview = useQuery({ ...monitorOverviewQuery, refetchInterval: 10000 });
   const data = overview.data;
   const projectName = useMemo(
     () => new Map(data?.projects.map((p) => [p.projectId, p.name]) ?? []),
@@ -191,7 +214,7 @@ export function Monitor({
     },
     {
       label: tr('Alerts'),
-      value: data.alerts.filter((a) => a.severity !== 'info').length,
+      value: alertCount(data),
       sub: tr('{count} informational', {
         count: data.alerts.filter((a) => a.severity === 'info').length,
       }),
@@ -425,6 +448,7 @@ export function Monitor({
           session={current}
           projectName={projectName}
           close={() => setSelected('')}
+          registerFolder={registerFolder}
         />
       )}
     </div>
@@ -493,10 +517,12 @@ function SessionDetail({
   session: s,
   projectName,
   close,
+  registerFolder,
 }: {
   session: MonitoredSession;
   projectName: Map<string, string>;
   close: () => void;
+  registerFolder: (path: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const output = useQuery({
@@ -509,6 +535,8 @@ function SessionDetail({
     [tr('Client'), tr(clientKey[s.client]) + (s.clientDetail ? ` · ${s.clientDetail}` : '')],
     [tr('Turn state'), stateOf(s).label],
     [tr('Process'), processText(s)],
+    [tr('Model'), s.model],
+    [tr('Context in use'), contextText(s)],
     [tr('Native session ID'), s.providerSessionId],
     [tr('Working directory'), s.cwd],
     [
@@ -542,6 +570,18 @@ function SessionDetail({
             </div>
           ))}
       </dl>
+      {s.association === 'unassigned' && (
+        <div className="monitor-register">
+          <span>
+            {tr(
+              'This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.',
+            )}
+          </span>
+          <button className="secondary small" onClick={() => registerFolder(s.cwd)}>
+            <FolderPlus size={14} /> {tr('Register folder as project')}
+          </button>
+        </div>
+      )}
       <div className="monitor-resume">
         <span>{tr('Continue in your own terminal')}</span>
         <code>{s.resumeCommand}</code>

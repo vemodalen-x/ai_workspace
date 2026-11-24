@@ -131,7 +131,7 @@ Read-only, process-local index of native Codex / Claude Code transcripts from an
 | GET    | `/monitor/overview`            | `MonitorOverview`: sources, totals, project health, up to 200 recent sessions plus every alerting session, and alerts. `?refresh=true` rescans. |
 | GET    | `/monitor/sessions/:id/output` | `id` is the 64-hex index id (400 otherwise, 404 if unknown). The native session id is re-checked before reading; a replaced file is rejected.   |
 
-Overview responses use an index at most 15 seconds old. Output uses the same bounded, redacted transcript reader as project history.
+Each session may carry `model` (latest turn) and `context: {tokens, window?}` (context used by the latest model request; `window` is only reported by Codex). Overview responses use an index at most 15 seconds old. Output uses the same bounded, redacted transcript reader as project history.
 
 ## Existing local folders and native history
 

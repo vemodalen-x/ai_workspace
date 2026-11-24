@@ -1,3 +1,13 @@
+# Native session monitor refinements, 2026-11-24
+
+Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.
+
+- Sessions now report the model of the latest turn and the context used by the latest model request: Codex `token_count` (with its context window), Claude `usage` (tokens only). Sidechain and `<synthetic>` API-error records are ignored. When a long final turn pushes the Codex turn context out of the tail window, the model comes from the head window. A regression test fails without this fallback.
+- An unassigned session's detail offers **Register folder as project**. It opens the existing import form with the path and name filled in and only writes the Workspace database. The sidebar Monitor entry shows the warning and error alert count, shared with the page through one query cache, as an accessible description.
+- A count of local Codex record types found 14 `event_msg` types and no approval-request event, so approval waits stay unsupported.
+- `npm run check`: PASS with **109 core tests**. `npm run test:production`, `npm run format:check` and `git diff --check`: PASS. Playwright under the isolated setup: 31 passed, 1 skipped. The new monitor e2e test covers model and context display, the alert badge, and registering the folder.
+- Real local homes (counts only): all 53 Codex sessions written in the last 7 days have a model and context usage (the highest at 91% of the window). 12 of 15 Claude sessions have both; the other 3 contain no assistant record. A full cold refresh took about 2 s.
+
 # Native session monitor iteration, 2026-11-23
 
 Linux, Node 24.22.3. Read-only; no provider was started and no paid inference ran.

@@ -22,6 +22,7 @@ import {
   type MonitorSource,
   type MonitorState,
   type SessionClient,
+  type SessionContext,
   type SessionPhase,
 } from '../shared/monitoring.ts';
 import type { NativeOutput, NativeProvider } from '../shared/native-history.ts';
@@ -36,6 +37,28 @@ const iso = (value: unknown) =>
   typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : undefined;
 const detail = (value: unknown) =>
   typeof value === 'string' && /^[\w .:@/-]{1,80}$/.test(value) ? value : undefined;
+const count = (value: unknown) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+/** Tokens in the context of one request: Codex `token_count` info or a Claude `usage` block. */
+function contextOf(
+  provider: NativeProvider,
+  r: Record<string, unknown>,
+): SessionContext | undefined {
+  if (provider === 'codex') {
+    const info = (r.payload as { info?: Record<string, unknown> | null } | undefined)?.info;
+    const last = info?.last_token_usage as Record<string, unknown> | undefined;
+    const tokens = count(last?.total_tokens);
+    const window = count(info?.model_context_window);
+    return tokens ? { tokens, window: window || undefined } : undefined;
+  }
+  const usage = (r.message as { usage?: Record<string, unknown> } | undefined)?.usage;
+  const tokens =
+    count(usage?.input_tokens) +
+    count(usage?.cache_creation_input_tokens) +
+    count(usage?.cache_read_input_tokens) +
+    count(usage?.output_tokens);
+  return tokens ? { tokens } : undefined;
+}
 
 function codexClient(meta: Record<string, unknown>) {
   const originator = typeof meta.originator === 'string' ? meta.originator : '';
@@ -92,6 +115,8 @@ interface Progress {
   lastEventAt?: string;
   errors: number;
   entrypoint?: string;
+  model?: string;
+  context?: SessionContext;
 }
 /** Resume point for one transcript: later refreshes only read bytes appended after `offset`. */
 export interface SessionCursor {
@@ -147,9 +172,12 @@ function apply(
     const request = requestOf(provider, nativeId, r);
     if (request) p.lastRequest = request;
     if (provider === 'codex') {
+      if (r.type === 'turn_context')
+        p.model = detail((r.payload as { model?: unknown } | undefined)?.model) ?? p.model;
       if (r.type !== 'event_msg') continue;
       const type = (r.payload as { type?: unknown } | undefined)?.type;
-      if (type === 'task_started') set('working', r);
+      if (type === 'token_count') p.context = contextOf(provider, r) ?? p.context;
+      else if (type === 'task_started') set('working', r);
       else if (type === 'task_complete') set('waiting', r);
       else if (type === 'turn_aborted') set('aborted', r);
       else if (type === 'error' || type === 'stream_error') {
@@ -161,7 +189,13 @@ function apply(
     if (!own(provider, nativeId, r)) continue;
     if (typeof r.entrypoint === 'string') p.entrypoint ??= r.entrypoint;
     if (r.type === 'assistant') {
-      const stop = (r.message as { stop_reason?: unknown } | undefined)?.stop_reason;
+      const message = r.message as { stop_reason?: unknown; model?: unknown } | undefined;
+      const stop = message?.stop_reason;
+      // API errors are written as `<synthetic>` messages without real usage.
+      if (message?.model !== '<synthetic>' && !r.isApiErrorMessage) {
+        p.model = detail(message?.model) ?? p.model;
+        p.context = contextOf(provider, r) ?? p.context;
+      }
       if (r.isApiErrorMessage || stop === 'refusal') {
         p.errors++;
         set('error', r);
@@ -197,6 +231,8 @@ const withProgress = (
   phase: p.phase,
   phaseAt: p.phaseAt,
   errors: p.errors,
+  model: p.model,
+  context: p.context,
 });
 
 /**
@@ -255,9 +291,14 @@ export async function parseSession(
   let firstRequest = '';
   for (const r of headRecords) if ((firstRequest = requestOf(provider, nativeId, r))) break;
   const progress: Progress = { phase: 'unknown', lastRequest: '', errors: 0 };
-  for (const r of headRecords)
+  for (const r of headRecords) {
     if (typeof r.entrypoint === 'string' && own(provider, nativeId, r))
       progress.entrypoint ??= r.entrypoint;
+    // A long final turn can push its turn context out of the tail; the head names the model.
+    if (provider === 'codex' && r.type === 'turn_context')
+      progress.model =
+        detail((r.payload as { model?: unknown } | undefined)?.model) ?? progress.model;
+  }
   apply(provider, nativeId, tail === head ? headRecords : records(tail.text).values, progress);
   const session: IndexedSession = {
     id: createHash('sha256')

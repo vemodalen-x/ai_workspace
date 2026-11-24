@@ -9,9 +9,11 @@ interface FolderListing {
   folders: { name: string; path: string }[];
   truncated: boolean;
 }
-export function ProjectFolderForm() {
-  const [path, setPath] = useState('');
-  const [name, setName] = useState('');
+const folderName = (path: string) =>
+  path.trim().split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 100) ?? '';
+export function ProjectFolderForm({ initialPath = '' }: { initialPath?: string }) {
+  const [path, setPath] = useState(initialPath);
+  const [name, setName] = useState(() => folderName(initialPath));
   const [nameEdited, setNameEdited] = useState(false);
   const [listing, setListing] = useState<FolderListing>();
   const [error, setError] = useState('');
@@ -62,8 +64,7 @@ export function ProjectFolderForm() {
           onChange={(e) => {
             const nextPath = e.target.value;
             setPath(nextPath);
-            if (!nameEdited)
-              setName(nextPath.trim().split(/[\\/]/).filter(Boolean).at(-1)?.slice(0, 100) ?? '');
+            if (!nameEdited) setName(folderName(nextPath));
           }}
           placeholder="/home/you/projects/app"
         />
