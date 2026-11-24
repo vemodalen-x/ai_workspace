@@ -575,6 +575,100 @@ test('the latest model and context usage come from turn records, not sidechains 
   assert.equal(longTurn?.context, undefined);
 });
 
+test('pending tool calls and plans show progress, and Claude questions wait for an answer', async () => {
+  const f = await fixture();
+  const index = new SessionIndex(
+    { codex: f.codex, claude: f.claude },
+    { probe: async () => undefined },
+  );
+  await index.refresh();
+  const find = async (id: string) =>
+    (await index.sessions()).find((s) => s.providerSessionId === id);
+  const item = (payload: Record<string, unknown>, timestamp = '2026-11-20T10:40:00.000Z') =>
+    line({ timestamp, type: 'response_item', payload });
+  const plan = JSON.stringify({
+    plan: [
+      { step: 'Read code', status: 'completed' },
+      { step: 'Write ' + fakeKey, status: 'in_progress' },
+      { step: 'Verify', status: 'pending' },
+    ],
+  });
+  await appendFile(
+    f.files.cli,
+    event('task_started', '2026-11-20T10:39:00.000Z') +
+      item({ type: 'function_call', name: 'update_plan', arguments: plan, call_id: 'c1' }) +
+      item({ type: 'function_call_output', call_id: 'c1', output: 'ok' }) +
+      item({ type: 'custom_tool_call', name: 'exec', input: 'npm test', call_id: 'c2' }),
+  );
+  await index.refresh();
+  let cli = await find('codex-cli');
+  assert.equal(cli?.phase, 'working');
+  assert.deepEqual(cli?.activity, { tool: 'exec', since: '2026-11-20T10:40:00.000Z' });
+  assert.equal(cli?.plan?.done, 1);
+  assert.equal(cli?.plan?.total, 3);
+  assert.ok(cli?.plan?.current?.startsWith('Write ') && !cli.plan.current.includes(fakeKey));
+  // A finished turn leaves nothing running; the plan stays as the last recorded state.
+  await appendFile(f.files.cli, event('task_complete', '2026-11-20T10:41:00.000Z'));
+  await index.refresh();
+  cli = await find('codex-cli');
+  assert.equal(cli?.activity, undefined);
+  assert.equal(cli?.plan?.total, 3);
+
+  const claude = (type: string, content: unknown[], extra: Record<string, unknown> = {}) =>
+    line({
+      type,
+      sessionId: 'claude-two',
+      timestamp: '2026-11-20T10:40:00.000Z',
+      message: { role: type, content, stop_reason: type === 'assistant' ? 'tool_use' : undefined },
+      ...extra,
+    });
+  await appendFile(
+    f.files.claudeError,
+    claude('user', [{ type: 'text', text: 'Plan the change' }]) +
+      claude('assistant', [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'TodoWrite',
+          input: { todos: [{ content: 'Ask', status: 'in_progress' }] },
+        },
+      ]) +
+      claude('user', [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }]) +
+      // A sidechain call does not belong to the main turn.
+      claude('assistant', [{ type: 'tool_use', id: 's1', name: 'Bash', input: {} }], {
+        isSidechain: true,
+      }) +
+      claude('assistant', [{ type: 'tool_use', id: 't2', name: 'AskUserQuestion', input: {} }]),
+  );
+  await index.refresh();
+  const two = await find('claude-two');
+  assert.equal(two?.activity?.tool, 'AskUserQuestion');
+  assert.deepEqual(two?.plan, {
+    done: 0,
+    total: 1,
+    current: 'Ask',
+    at: '2026-11-20T10:40:00.000Z',
+  });
+
+  // Fifty idle minutes after the last write, which would otherwise count as stalled.
+  const clock = new Date(Date.parse(two!.modifiedAt) + 50 * 60_000);
+  const overview = buildMonitorOverview({
+    state: emptyState(),
+    sessions: [two!],
+    sources: [],
+    projectPaths: {},
+    workspacePaths: {},
+    clock,
+  });
+  const monitored = overview.sessions[0];
+  assert.equal(monitored.needsAnswer, true);
+  assert.equal(monitored.stalled, false);
+  assert.deepEqual(
+    overview.alerts.filter((a) => a.sessionId === monitored.id).map((a) => a.kind),
+    ['session_needs_answer'],
+  );
+});
+
 test('the entry limit applies per source and keeps the newest Codex days', async () => {
   const f = await fixture();
   const older = join(f.codex, 'sessions/2026/10/01');

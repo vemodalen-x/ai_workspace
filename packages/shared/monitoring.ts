@@ -36,7 +36,24 @@ export interface IndexedSession {
   model?: string;
   /** Context occupied by the most recent model request. */
   context?: SessionContext;
+  /** Latest plan the agent recorded (Codex `update_plan`, Claude `TodoWrite`). */
+  plan?: SessionPlan;
+  /** Most recent tool call of the current turn that has no result yet. */
+  activity?: SessionActivity;
 }
+export interface SessionPlan {
+  done: number;
+  total: number;
+  /** The step marked in progress. */
+  current?: string;
+  at?: string;
+}
+export interface SessionActivity {
+  tool: string;
+  since?: string;
+}
+/** Claude Code tools that block the turn until the user answers in the original client. */
+export const answerTools = ['AskUserQuestion', 'ExitPlanMode'];
 export interface SessionContext {
   tokens: number;
   /** Context window reported by the tool; Claude Code does not record it. */
@@ -51,6 +68,8 @@ export interface MonitoredSession extends Omit<IndexedSession, 'canonicalCwd'> {
   stalled: boolean;
   /** The turn never finished and no process holds the transcript any more. */
   endedMidTurn: boolean;
+  /** The agent asked a question and waits for an answer in its own client. */
+  needsAnswer: boolean;
   resumeCommand: string;
 }
 export interface MonitorSource {
@@ -80,6 +99,7 @@ export type MonitorAlertKind =
   | 'session_stalled'
   | 'session_aborted'
   | 'session_ended'
+  | 'session_needs_answer'
   | 'run_orphaned'
   | 'run_failed'
   | 'attempt_failed'
@@ -217,6 +237,11 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       projectId = undefined;
     }
     const unfinished = session.phase === 'working' && !session.archived;
+    const needsAnswer =
+      unfinished &&
+      !!session.activity &&
+      answerTools.includes(session.activity.tool) &&
+      idle <= monitorLimits.recentMs;
     // Writes inside the active window may come from a process that started after the probe.
     const endedMidTurn =
       unfinished &&
@@ -226,6 +251,7 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
     const stalled =
       unfinished &&
       !endedMidTurn &&
+      !needsAnswer &&
       session.process !== 'detached' &&
       idle > monitorLimits.stalledMs &&
       idle <= monitorLimits.recentMs;
@@ -238,6 +264,7 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
       suggestedProjectId,
       stalled,
       endedMidTurn,
+      needsAnswer,
       resumeCommand: resumeCommand(session),
     };
   });
@@ -257,6 +284,13 @@ export function buildMonitorOverview(input: MonitorInput): MonitorOverview {
         id: `session_error:${s.id}`,
         kind: 'session_error',
         severity: 'error',
+      });
+    else if (s.needsAnswer)
+      alerts.push({
+        ...base,
+        id: `session_needs_answer:${s.id}`,
+        kind: 'session_needs_answer',
+        severity: 'warning',
       });
     else if (s.endedMidTurn)
       alerts.push({

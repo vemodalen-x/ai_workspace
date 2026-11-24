@@ -1008,5 +1008,13 @@
   "{used} of {window} tokens ({percent}%)": "{used} of {window} tokens ({percent}%)",
   "{used} tokens": "{used} tokens",
   "This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.": "This folder is not a registered project. Registering it only adds a Workspace record; the folder and the session are not changed.",
-  "Register folder as project": "Register folder as project"
+  "Register folder as project": "Register folder as project",
+  "Waiting for your answer": "Waiting for your answer",
+  "Running {tool}, started {time}": "Running {tool}, started {time}",
+  "Plan {done}/{total}": "Plan {done}/{total}",
+  "Progress": "Progress",
+  "This browser does not support desktop notifications.": "This browser does not support desktop notifications.",
+  "Desktop notifications are blocked for this page.": "Desktop notifications are blocked for this page.",
+  "Notifications on": "Notifications on",
+  "Notifications off": "Notifications off"
 }

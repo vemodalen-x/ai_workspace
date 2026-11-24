@@ -153,3 +153,129 @@ test('an unassigned session shows model, context use and alerts, and its folder 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('progress, questions waiting for an answer and desktop notifications for new alerts', async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.CODEX_HOME ||
+      !process.env.CLAUDE_CONFIG_DIR ||
+      process.env.WORKSPACE_MONITOR_E2E !== '1',
+    'Requires dedicated tool homes shared by server and tests',
+  );
+  // A stand-in Notification records what would be shown instead of opening system popups.
+  await page.addInitScript(() => {
+    const shown: { title: string; body?: string }[] = [];
+    class FakeNotification {
+      static permission = 'granted';
+      static requestPermission = async () => 'granted';
+      constructor(title: string, options?: { body?: string }) {
+        shown.push({ title, body: options?.body });
+      }
+    }
+    Object.assign(window, { Notification: FakeNotification, shownNotifications: shown });
+  });
+  const root = await mkdtemp(join(tmpdir(), 'monitor-progress-')),
+    codexId = randomUUID(),
+    claudeId = randomUUID();
+  const jsonl = (...records: unknown[]) => records.map((r) => JSON.stringify(r) + '\n').join('');
+  const codexFile = join(
+    process.env.CODEX_HOME!,
+    'sessions',
+    'monitor',
+    `rollout-${codexId}.jsonl`,
+  );
+  const claudeFile = join(
+    process.env.CLAUDE_CONFIG_DIR!,
+    'projects',
+    '-progress',
+    `${claudeId}.jsonl`,
+  );
+  await mkdir(join(process.env.CODEX_HOME!, 'sessions', 'monitor'), { recursive: true });
+  await mkdir(join(process.env.CLAUDE_CONFIG_DIR!, 'projects', '-progress'), { recursive: true });
+  await writeFile(
+    codexFile,
+    jsonl(
+      { type: 'session_meta', payload: { id: codexId, cwd: root, source: 'cli' } },
+      {
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'Progress monitor task' }],
+        },
+      },
+      { type: 'event_msg', payload: { type: 'task_started' } },
+      {
+        type: 'response_item',
+        payload: {
+          type: 'function_call',
+          name: 'update_plan',
+          call_id: 'p1',
+          arguments: JSON.stringify({
+            plan: [
+              { step: 'Inspect', status: 'completed' },
+              { step: 'Build the feature', status: 'in_progress' },
+            ],
+          }),
+        },
+      },
+      { type: 'response_item', payload: { type: 'function_call_output', call_id: 'p1' } },
+      {
+        type: 'response_item',
+        payload: { type: 'custom_tool_call', name: 'exec', call_id: 'e1', input: 'npm test' },
+      },
+    ),
+  );
+  const claudeRecord = (type: string, content: unknown[]) => ({
+    type,
+    sessionId: claudeId,
+    cwd: root,
+    entrypoint: 'cli',
+    timestamp: new Date().toISOString(),
+    message: { role: type, content, stop_reason: type === 'assistant' ? 'tool_use' : undefined },
+  });
+  try {
+    await page.goto('/#/monitor');
+    await page.getByRole('button', { name: 'Notifications off', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Notifications on', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    const sessions = page.getByRole('region', { name: 'Native sessions', exact: true });
+    const codexRow = sessions.getByRole('row').filter({ hasText: 'Progress monitor task' });
+    await expect(codexRow).toContainText('Running exec');
+    await expect(codexRow).toContainText('Plan 1/2 · Build the feature');
+
+    // From now on the page counts as hidden, so new alerts are announced.
+    await page.evaluate(() =>
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      }),
+    );
+    await writeFile(
+      claudeFile,
+      jsonl(
+        claudeRecord('user', [{ type: 'text', text: 'Claude question task' }]),
+        claudeRecord('assistant', [
+          { type: 'tool_use', id: 'q1', name: 'AskUserQuestion', input: {} },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    const claudeRow = sessions.getByRole('row').filter({ hasText: 'Claude question task' });
+    await expect(claudeRow).toContainText('Waiting for your answer');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { shownNotifications: unknown[] }).shownNotifications,
+        ),
+      )
+      .toContainEqual({ title: 'Waiting for your answer', body: 'Claude question task' });
+  } finally {
+    await rm(codexFile, { force: true });
+    await rm(claudeFile, { force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});

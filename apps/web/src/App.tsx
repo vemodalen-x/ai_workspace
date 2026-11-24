@@ -50,7 +50,12 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 import { Focus } from './Focus.tsx';
-import { alertCount, Monitor as MonitorPage, monitorOverviewQuery } from './Monitor.tsx';
+import {
+  alertCount,
+  Monitor as MonitorPage,
+  monitorOverviewQuery,
+  useAlertNotifications,
+} from './Monitor.tsx';
 import { ResultEvidence } from './ResultEvidence.tsx';
 import { api, useWorkspace } from './api.ts';
 import type { Task, Project, Session, Run, Approval } from '../../../packages/shared/index.ts';
@@ -85,10 +90,23 @@ const short = (id?: string) => id?.slice(0, 8) ?? '—';
 export function App() {
   useLocale();
   const { data, error, isLoading, events, connected, refresh } = useWorkspace();
-  // Keeps the Monitor alert badge current while other views are open.
-  const monitor = useQuery({ ...monitorOverviewQuery, refetchInterval: 30000, enabled: !!data });
+  const [notifications, setNotifications] = usePreference('aw.monitorNotifications', false);
+  // Keeps the Monitor alert badge current while other views are open, and keeps polling in a
+  // background tab only when desktop notifications are on.
+  const monitor = useQuery({
+    ...monitorOverviewQuery,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: notifications,
+    enabled: !!data,
+  });
   const { route, navigate } = useWorkspaceRoute();
   const { view, projectId, taskId, sessionId, treeMode, tab, search } = route;
+  // Re-evaluated on each overview; the visible Monitor page already shows new alerts.
+  useAlertNotifications(
+    monitor.data,
+    notifications,
+    view === 'monitor' && document.visibilityState === 'visible',
+  );
   const setView = (view: WorkspaceView) => navigate({ view, search: '' });
   const setTab = (tab: string) => navigate({ tab });
   const setTreeMode = (treeMode: 'tree' | 'graph') => navigate({ treeMode });
@@ -654,6 +672,8 @@ export function App() {
             search={search}
             openProject={(projectId) => navigate({ view: 'project', projectId, search: '' })}
             registerFolder={(repoPath) => setModal({ kind: 'project', repoPath })}
+            notifications={notifications}
+            setNotifications={setNotifications}
           />
         )}
         {view === 'focus' && (

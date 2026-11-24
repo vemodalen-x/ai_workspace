@@ -207,3 +207,6 @@
 .monitor .section-heading h2 {
   white-space: nowrap;
 }
+.monitor-title .monitor-progress {
+  color: var(--accent);
+}

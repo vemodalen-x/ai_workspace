@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   AlertTriangle,
+  Bell,
+  BellOff,
   Copy,
   Eye,
   FolderGit2,
@@ -62,11 +64,12 @@ const healthTone: Record<ProjectHealth, string> = {
   idle: 'queued',
 };
 const severityTone = { error: 'failed', warning: 'pending', info: 'queued' } as const;
-const alertKey: Record<MonitorAlert['kind'], MessageKey> = {
+export const alertKey: Record<MonitorAlert['kind'], MessageKey> = {
   session_error: 'Session recorded an error',
   session_stalled: 'Turn in progress with no new records',
   session_aborted: 'Turn interrupted',
   session_ended: 'Process exited mid-turn',
+  session_needs_answer: 'Waiting for your answer',
   run_orphaned: 'Managed run outcome unknown',
   run_failed: 'Managed run needs review',
   attempt_failed: 'Experiment attempt failed',
@@ -98,6 +101,48 @@ const contextText = ({ context }: MonitoredSession) =>
           percent: Math.min(100, Math.round((context.tokens / context.window) * 100)),
         })
       : tr('{used} tokens', { used: tokens(context.tokens) });
+const alertTitle = (a: MonitorAlert) =>
+  a.kind === 'attempt_failed' ? uiMessage(a.title) : a.title;
+/**
+ * Shows a desktop notification for each warning or error alert that appears after the first
+ * overview, while the page is hidden or another view is open. Nothing leaves the browser.
+ */
+export function useAlertNotifications(
+  data: MonitorOverview | undefined,
+  enabled: boolean,
+  quiet: boolean,
+) {
+  const seen = useRef<Set<string>>(undefined);
+  useEffect(() => {
+    const alerts = data?.alerts.filter((a) => a.severity !== 'info');
+    if (!alerts) return;
+    const previous = seen.current;
+    seen.current = new Set(alerts.map((a) => a.id));
+    if (
+      !previous ||
+      !enabled ||
+      quiet ||
+      typeof Notification === 'undefined' ||
+      Notification.permission !== 'granted'
+    )
+      return;
+    for (const a of alerts.filter((a) => !previous.has(a.id)).slice(0, 3))
+      new Notification(tr(alertKey[a.kind]), { body: alertTitle(a), tag: a.id });
+  }, [data, enabled, quiet]);
+}
+const progressText = (s: MonitoredSession) =>
+  [
+    s.activity &&
+      tr('Running {tool}, started {time}', {
+        tool: s.activity.tool,
+        time: relativeTime(s.activity.since),
+      }),
+    s.plan &&
+      tr('Plan {done}/{total}', { done: s.plan.done, total: s.plan.total }) +
+        (s.plan.current ? ' · ' + s.plan.current : ''),
+  ]
+    .filter(Boolean)
+    .join(' · ') || undefined;
 type Filter = 'all' | 'active' | 'open' | 'recent' | 'attention' | 'unassigned';
 
 export function relativeTime(iso: string | undefined, now = Date.now()) {
@@ -110,11 +155,13 @@ export function relativeTime(iso: string | undefined, now = Date.now()) {
 }
 
 const stateOf = (s: MonitoredSession) =>
-  s.endedMidTurn
-    ? { tone: 'failed', label: tr('Process exited mid-turn') }
-    : s.stalled
-      ? { tone: 'pending', label: tr('Possibly stalled') }
-      : { tone: phaseTone[s.phase], label: tr(phaseKey[s.phase]) };
+  s.needsAnswer
+    ? { tone: 'pending', label: tr('Waiting for your answer') }
+    : s.endedMidTurn
+      ? { tone: 'failed', label: tr('Process exited mid-turn') }
+      : s.stalled
+        ? { tone: 'pending', label: tr('Possibly stalled') }
+        : { tone: phaseTone[s.phase], label: tr(phaseKey[s.phase]) };
 const processText = (s: MonitoredSession) =>
   s.process === 'attached'
     ? tr('Held open by a running process')
@@ -136,11 +183,15 @@ export function Monitor({
   search,
   openProject,
   registerFolder,
+  notifications,
+  setNotifications,
 }: {
   search: string;
   openProject: (projectId: string) => void;
   /** Opens the project import form for a session folder; only writes the Workspace database. */
   registerFolder: (path: string) => void;
+  notifications: boolean;
+  setNotifications: (enabled: boolean) => void;
 }) {
   useLocale();
   const [filter, setFilter] = useState<Filter>('recent');
@@ -150,6 +201,7 @@ export function Monitor({
   const [selected, setSelected] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState('');
+  const [notifyError, setNotifyError] = useState('');
   const queryClient = useQueryClient();
   const overview = useQuery({ ...monitorOverviewQuery, refetchInterval: 10000 });
   const data = overview.data;
@@ -236,22 +288,43 @@ export function Monitor({
             )}
           </p>
         </div>
-        <button
-          className="secondary"
-          disabled={refreshing}
-          onClick={() => {
-            setRefreshing(true);
-            setRefreshError('');
-            api<MonitorOverview>('/monitor/overview?refresh=true')
-              .then((fresh) => queryClient.setQueryData(['monitor-overview'], fresh))
-              .catch((error: Error) => setRefreshError(error.message))
-              .finally(() => setRefreshing(false));
-          }}
-        >
-          <RefreshCw size={15} /> {tr('Refresh')}
-        </button>
+        <div className="button-group">
+          <button
+            className="secondary"
+            aria-pressed={notifications}
+            onClick={() => {
+              setNotifyError('');
+              if (notifications) return setNotifications(false);
+              if (typeof Notification === 'undefined')
+                return setNotifyError(tr('This browser does not support desktop notifications.'));
+              void Notification.requestPermission().then((permission) =>
+                permission === 'granted'
+                  ? setNotifications(true)
+                  : setNotifyError(tr('Desktop notifications are blocked for this page.')),
+              );
+            }}
+          >
+            {notifications ? <Bell size={15} /> : <BellOff size={15} />}{' '}
+            {notifications ? tr('Notifications on') : tr('Notifications off')}
+          </button>
+          <button
+            className="secondary"
+            disabled={refreshing}
+            onClick={() => {
+              setRefreshing(true);
+              setRefreshError('');
+              api<MonitorOverview>('/monitor/overview?refresh=true')
+                .then((fresh) => queryClient.setQueryData(['monitor-overview'], fresh))
+                .catch((error: Error) => setRefreshError(error.message))
+                .finally(() => setRefreshing(false));
+            }}
+          >
+            <RefreshCw size={15} /> {tr('Refresh')}
+          </button>
+        </div>
       </div>
       {refreshError && <p role="alert">{errorText(refreshError)}</p>}
+      {notifyError && <p role="alert">{notifyError}</p>}
       <p className="form-hint monitor-scan">
         {tr('Last scan {time}', { time: relativeTime(data.scannedAt) })}
         <span>
@@ -304,7 +377,7 @@ export function Monitor({
                       else if (a.projectId) openProject(a.projectId);
                     }}
                   >
-                    {a.kind === 'attempt_failed' ? uiMessage(a.title) : a.title}
+                    {alertTitle(a)}
                   </button>
                   <small>
                     {a.projectId ? projectName.get(a.projectId) : ''}
@@ -479,6 +552,7 @@ function SessionRow({
       <span role="cell" className="monitor-title">
         <b>{s.title || s.providerSessionId}</b>
         {s.lastRequest && s.lastRequest !== s.title && <small>{s.lastRequest}</small>}
+        {progressText(s) && <small className="monitor-progress">{progressText(s)}</small>}
       </span>
       <span role="cell">
         {s.projectId ? (
@@ -535,6 +609,7 @@ function SessionDetail({
     [tr('Client'), tr(clientKey[s.client]) + (s.clientDetail ? ` · ${s.clientDetail}` : '')],
     [tr('Turn state'), stateOf(s).label],
     [tr('Process'), processText(s)],
+    [tr('Progress'), progressText(s)],
     [tr('Model'), s.model],
     [tr('Context in use'), contextText(s)],
     [tr('Native session ID'), s.providerSessionId],

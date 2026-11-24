@@ -22,8 +22,10 @@ import {
   type MonitorSource,
   type MonitorState,
   type SessionClient,
+  type SessionActivity,
   type SessionContext,
   type SessionPhase,
+  type SessionPlan,
 } from '../shared/monitoring.ts';
 import type { NativeOutput, NativeProvider } from '../shared/native-history.ts';
 
@@ -117,6 +119,45 @@ interface Progress {
   entrypoint?: string;
   model?: string;
   context?: SessionContext;
+  plan?: SessionPlan;
+  /** Tool calls of the current turn without a result, by call id, oldest first. */
+  calls: Record<string, SessionActivity>;
+}
+const maxCalls = 64;
+const plans = ['update_plan', 'functions.update_plan', 'TodoWrite'];
+function planOf(steps: unknown, at?: string): SessionPlan | undefined {
+  if (!Array.isArray(steps)) return undefined;
+  const items = steps.filter(
+    (s): s is Record<string, unknown> => !!s && typeof s === 'object' && !Array.isArray(s),
+  );
+  if (!items.length) return undefined;
+  const active = items.find((s) => s.status === 'in_progress');
+  const text = active?.step ?? active?.content;
+  return {
+    done: items.filter((s) => s.status === 'completed').length,
+    total: items.length,
+    current: typeof text === 'string' ? clip(text, 160) : undefined,
+    at,
+  };
+}
+/** Record a tool call; plan updates also replace the plan. */
+function called(p: Progress, id: unknown, name: unknown, input: unknown, at?: string) {
+  const tool = detail(name);
+  if (!tool || typeof id !== 'string' || !id) return;
+  if (plans.includes(tool)) {
+    let args = input;
+    if (typeof args === 'string')
+      try {
+        args = JSON.parse(args);
+      } catch {
+        args = undefined;
+      }
+    const value = args as { plan?: unknown; todos?: unknown } | undefined;
+    p.plan = planOf(tool === 'TodoWrite' ? value?.todos : value?.plan, at) ?? p.plan;
+  }
+  p.calls[id] = { tool, since: at };
+  const ids = Object.keys(p.calls);
+  if (ids.length > maxCalls) delete p.calls[ids[0]];
 }
 /** Resume point for one transcript: later refreshes only read bytes appended after `offset`. */
 export interface SessionCursor {
@@ -166,6 +207,8 @@ function apply(
   const set = (next: SessionPhase, r: Record<string, unknown>) => {
     p.phase = next;
     p.phaseAt = iso(r.timestamp) ?? p.phaseAt;
+    // A finished or interrupted turn leaves nothing running, even without tool results.
+    if (next === 'waiting' || next === 'aborted') p.calls = {};
   };
   for (const r of values) {
     p.lastEventAt = iso(r.timestamp) ?? p.lastEventAt;
@@ -174,11 +217,23 @@ function apply(
     if (provider === 'codex') {
       if (r.type === 'turn_context')
         p.model = detail((r.payload as { model?: unknown } | undefined)?.model) ?? p.model;
+      if (r.type === 'response_item') {
+        const item = r.payload as Record<string, unknown> | undefined;
+        if (item?.type === 'function_call' || item?.type === 'custom_tool_call')
+          called(p, item.call_id, item.name, item.arguments ?? item.input, iso(r.timestamp));
+        else if (
+          (item?.type === 'function_call_output' || item?.type === 'custom_tool_call_output') &&
+          typeof item.call_id === 'string'
+        )
+          delete p.calls[item.call_id];
+      }
       if (r.type !== 'event_msg') continue;
       const type = (r.payload as { type?: unknown } | undefined)?.type;
       if (type === 'token_count') p.context = contextOf(provider, r) ?? p.context;
-      else if (type === 'task_started') set('working', r);
-      else if (type === 'task_complete') set('waiting', r);
+      else if (type === 'task_started') {
+        p.calls = {};
+        set('working', r);
+      } else if (type === 'task_complete') set('waiting', r);
       else if (type === 'turn_aborted') set('aborted', r);
       else if (type === 'error' || type === 'stream_error') {
         p.errors++;
@@ -188,6 +243,18 @@ function apply(
     }
     if (!own(provider, nativeId, r)) continue;
     if (typeof r.entrypoint === 'string') p.entrypoint ??= r.entrypoint;
+    const blocks = (r.message as { content?: unknown } | undefined)?.content;
+    if (Array.isArray(blocks))
+      for (const b of blocks as Record<string, unknown>[]) {
+        if (r.type === 'assistant' && b?.type === 'tool_use')
+          called(p, b.id, b.name, b.input, iso(r.timestamp));
+        else if (
+          r.type === 'user' &&
+          b?.type === 'tool_result' &&
+          typeof b.tool_use_id === 'string'
+        )
+          delete p.calls[b.tool_use_id];
+      }
     if (r.type === 'assistant') {
       const message = r.message as { stop_reason?: unknown; model?: unknown } | undefined;
       const stop = message?.stop_reason;
@@ -233,6 +300,8 @@ const withProgress = (
   errors: p.errors,
   model: p.model,
   context: p.context,
+  plan: p.plan,
+  activity: Object.values(p.calls).at(-1),
 });
 
 /**
@@ -255,7 +324,7 @@ export async function parseSession(
       !data.truncated &&
       (await fingerprint(root, path)) === previous.head
     ) {
-      const progress = { ...previous.progress };
+      const progress = { ...previous.progress, calls: { ...previous.progress.calls } };
       apply(
         provider,
         previous.parsed.session.providerSessionId,
@@ -290,7 +359,7 @@ export async function parseSession(
   const headRecords = records(head.text).values;
   let firstRequest = '';
   for (const r of headRecords) if ((firstRequest = requestOf(provider, nativeId, r))) break;
-  const progress: Progress = { phase: 'unknown', lastRequest: '', errors: 0 };
+  const progress: Progress = { phase: 'unknown', lastRequest: '', errors: 0, calls: {} };
   for (const r of headRecords) {
     if (typeof r.entrypoint === 'string' && own(provider, nativeId, r))
       progress.entrypoint ??= r.entrypoint;
