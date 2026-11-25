@@ -21,6 +21,13 @@ test('workspace deep links preserve task/session/tab and escape search without a
   assert.equal(parseRoute('#/unknown?tab=arbitrary&tree=anything').view, 'focus');
   assert.equal(parseRoute('#/monitor?q=codex').view, 'monitor');
   assert.equal(parseRoute('#/monitor?q=codex').search, 'codex');
+  const native = 'f'.repeat(64);
+  const monitored = parseRoute('#/monitor?native=' + native + '&q=claude');
+  assert.equal(monitored.nativeSessionId, native);
+  assert.equal(monitored.sessionId, '');
+  assert.equal(routeHash(monitored), '#/monitor?native=' + native + '&q=claude');
+  assert.equal(parseRoute('#/monitor?native=invalid').nativeSessionId, '');
+  assert.equal(parseRoute('#/sessions?native=' + native + '&session=managed').nativeSessionId, '');
   assert.equal(parseRoute('#/sessions?tab=arbitrary').tab, 'console');
   assert.equal(parseRoute('#/project?tree=graph').treeMode, 'graph');
   assert.equal(parseRoute('#/experiments?q=' + 'x'.repeat(1000)).search.length, 500);

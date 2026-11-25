@@ -670,6 +670,9 @@ export function App() {
         {view === 'monitor' && (
           <MonitorPage
             search={search}
+            clearSearch={() => setSearch('')}
+            nativeSessionId={route.nativeSessionId}
+            openSession={(nativeSessionId) => navigate({ nativeSessionId })}
             openProject={(projectId) => navigate({ view: 'project', projectId, search: '' })}
             registerFolder={(repoPath) => setModal({ kind: 'project', repoPath })}
             notifications={notifications}

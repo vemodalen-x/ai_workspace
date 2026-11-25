@@ -2,6 +2,8 @@
 
 日常开发通过原生 Codex CLI、Claude Code CLI，或 VS Code、PyCharm/JetBrains 等 IDE 插件完成。Workspace 的 **Monitor** 页只做统一监控入口：集中展示项目、原生会话和工作台任务的状态、进度与异常。用户不需要通过 Workspace 发起任务，监控也不会启动、恢复、终止或接管任何 Agent 进程。
 
+会话页支持按项目、工具、客户端和状态筛选。等待回答的会话在列表中优先展示，可一键筛出。选择会话后在详情区查看进度、最近消息和恢复命令。会话链接可在刷新或浏览器前进/后退后恢复；链接包含索引 ID，会话仍须出现在当前服务的索引中。这里借鉴了 JetBrains AI Assistant 按项目查看对话历史和突出等待输入会话的设计。[JetBrains 官方说明](https://www.jetbrains.com/help/ai-assistant/chat-mode.html#chat-history)
+
 ## 发现
 
 服务进程内维护一个可重建的内存索引（`packages/orchestration/session-index.ts`），启动时扫描一次，之后每 15 秒增量刷新；页面每 10 秒读取结果，**Refresh** 会立即扫描。

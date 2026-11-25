@@ -43,4 +43,8 @@ loginctl show-user "$USER" -p Linger
 
 更新前验证新发布、确认没有正在执行的任务，停止健康计时器和控制端后备份 SQLite 数据库与 unit；再切换 `current` 并启动服务与计时器。保留旧发布目录，回滚时停止服务、将 `current` 指回旧目录再启动。不要对运行中的数据库直接复制单一 `.db` 文件来声称一致备份；使用 SQLite backup，或干净停止后复制。不要从备份自动覆盖升级后已经产生的新数据。
 
+候选发布应从干净的 Git 提交构建。构建时将提交 SHA 写入服务端，`GET /api/bootstrap` 的 `buildCommit` 返回运行中的构建标识。工作区有未提交改动或源归档缺少 Git 元数据时默认返回 `null`。由可信发布流程从源归档构建时，可通过 `WORKSPACE_BUILD_COMMIT` 提供该归档对应的 SHA。
+
+部署前用隔离数据目录和端口启动候选包，部署后对实际端口再运行一次 `node scripts/service-health.mjs --expect-commit <完整提交 SHA>`（通过 `API_PORT` 指定端口）。该命令另行验证运行中的 SHA 和认证后的 Monitor 概览。原定时器继续使用无参数的健康检查。
+
 本次本机注册与验证结果见部署目录中的 `DEPLOYMENT.md`；重启整机和断电恢复不能仅凭 enabled / linger 状态宣称已经实际测试。

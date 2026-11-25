@@ -1016,5 +1016,18 @@
   "This browser does not support desktop notifications.": "当前浏览器不支持桌面通知。",
   "Desktop notifications are blocked for this page.": "此页面的桌面通知已被浏览器阻止。",
   "Notifications on": "通知已开启",
-  "Notifications off": "通知已关闭"
+  "Notifications off": "通知已关闭",
+  "Select a session": "选择会话",
+  "Choose a session to see its progress and recent messages.": "选择一个会话即可查看进度和最近消息。",
+  "Monitor refresh failed. Showing the last available results.": "监控刷新失败，正在显示上一次可用结果。",
+  "Could not copy the command. Select and copy it manually.": "无法复制命令，请选中命令后手动复制。",
+  "Only a partial transcript is available.": "当前仅能查看部分对话。",
+  "Show latest 30 messages": "仅显示最近 30 条消息",
+  "Show earlier messages": "显示更早的消息",
+  "Turn finished": "本轮已结束",
+  "The open session is outside the current filters.": "当前打开的会话不在筛选结果中。",
+  "Show in session list": "在会话列表中显示",
+  "Clear session filters": "清除会话筛选",
+  "Session unavailable": "会话不可用",
+  "This session is outside the current index or its source is unavailable. Refresh to scan again.": "此会话不在当前索引中，或来源暂时不可用。刷新后可重新扫描。"
 }

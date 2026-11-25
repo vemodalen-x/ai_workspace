@@ -62,17 +62,35 @@ test('a terminal session appears with its project, turn state and transcript, th
     await expect(row).toContainText('Monitor fixture');
     await expect(row).toContainText('Turn in progress');
     await expect(row).toContainText('Terminal CLI');
-    await row.getByRole('button', { name: 'Inspect session', exact: true }).click();
+    await row.getByRole('button', { name: 'Monitor 原生 task', exact: true }).click();
     const detail = page.getByRole('region', { name: 'Session details', exact: true });
     await expect(detail).toContainText('codex resume ' + id);
     await expect(detail.locator('.monitor-transcript')).toContainText('Monitor 原生 task');
+    await expect(page).toHaveURL(/#\/monitor\?native=[a-f0-9]{64}$/);
+    const sessionUrl = page.url();
+    await page.reload();
+    await expect(detail.getByRole('heading', { name: 'Monitor 原生 task' })).toBeVisible();
+    await sessions.getByLabel('Tool', { exact: true }).selectOption('claude');
+    await expect(row).toHaveCount(0);
+    await expect(detail).toBeVisible();
+    await sessions.getByRole('button', { name: 'Show in session list' }).click();
+    await expect(row).toBeVisible();
+    await detail.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(detail).toHaveCount(0);
+    await page.goBack();
+    await expect(page).toHaveURL(sessionUrl);
+    await expect(detail).toBeVisible();
     await appendFile(file, jsonl({ type: 'event_msg', payload: { type: 'task_complete' } }));
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await expect(row).toContainText('Awaiting input');
+    await expect(row).toContainText('Turn finished');
     const snapshot = await (await page.request.get('/api/snapshot', { headers })).json();
     expect(
       snapshot.tasks.filter((t: { projectId: string }) => t.projectId === registered.id),
     ).toEqual([]);
+    await page.goto('/#/monitor?native=' + 'a'.repeat(64));
+    await expect(page.getByRole('heading', { name: 'Session unavailable' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(page).toHaveURL(/#\/monitor$/);
   } finally {
     await page.request.delete('/api/projects/' + registered.id, { headers });
     await rm(file, { force: true });
@@ -132,7 +150,7 @@ test('an unassigned session shows model, context use and alerts, and its folder 
     const row = sessions.getByRole('row').filter({ hasText: 'Unassigned monitor task' });
     await expect(row).toContainText('Error recorded');
     await expect(row).toContainText('Unassigned');
-    await row.getByRole('button', { name: 'Inspect session', exact: true }).click();
+    await row.getByRole('button', { name: 'Unassigned monitor task', exact: true }).click();
     const detail = page.getByRole('region', { name: 'Session details', exact: true });
     await expect(detail).toContainText('gpt-e2e');
     await expect(detail).toContainText('64k of 256k tokens (25%)');
@@ -266,6 +284,22 @@ test('progress, questions waiting for an answer and desktop notifications for ne
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     const claudeRow = sessions.getByRole('row').filter({ hasText: 'Claude question task' });
     await expect(claudeRow).toContainText('Waiting for your answer');
+    const waiting = sessions.getByRole('button', { name: /Waiting for your answer/ });
+    await waiting.click();
+    await expect(waiting).toHaveAttribute('aria-pressed', 'true');
+    await expect(codexRow).toHaveCount(0);
+    const open = claudeRow.getByRole('button', { name: 'Claude question task', exact: true });
+    await open.press('Enter');
+    await expect(open).toHaveAttribute('aria-current', 'true');
+    const detail = page.getByRole('region', { name: 'Session details', exact: true });
+    await expect(detail.getByRole('heading', { name: 'Claude question task' })).toBeFocused();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(claudeRow).toContainText('Waiting for your answer');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await detail.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(open).toBeFocused();
     await expect
       .poll(() =>
         page.evaluate(

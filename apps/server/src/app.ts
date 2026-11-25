@@ -20,6 +20,10 @@ import { reasoningEffortSchema } from '../../../packages/shared/models.ts';
 import { taskExecutionSummary } from '../../../packages/orchestration/execution-summary.ts';
 import manifest from '../../../package.json' with { type: 'json' };
 
+declare const __WORKSPACE_BUILD_COMMIT__: string | null;
+const buildCommit =
+  typeof __WORKSPACE_BUILD_COMMIT__ === 'undefined' ? null : __WORKSPACE_BUILD_COMMIT__;
+
 const projectInput = z.object({
   name: z.string().trim().min(1).max(100),
   repoPath: z.string().min(1).max(4096),
@@ -84,7 +88,7 @@ export async function createApp(
     const status = e instanceof z.ZodError ? 400 : /not found/.test(e.message) ? 404 : 409;
     reply.code(status).send(redact({ error: e.message.slice(0, 4000) }));
   });
-  app.get('/api/bootstrap', async () => ({ token, version: manifest.version }));
+  app.get('/api/bootstrap', async () => ({ token, version: manifest.version, buildCommit }));
   app.get('/api/snapshot', async () => service.snapshot());
   const native = new NativeHistoryReader();
   const registeredProject = (id: string) => {

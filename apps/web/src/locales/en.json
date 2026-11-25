@@ -1016,5 +1016,18 @@
   "This browser does not support desktop notifications.": "This browser does not support desktop notifications.",
   "Desktop notifications are blocked for this page.": "Desktop notifications are blocked for this page.",
   "Notifications on": "Notifications on",
-  "Notifications off": "Notifications off"
+  "Notifications off": "Notifications off",
+  "Select a session": "Select a session",
+  "Choose a session to see its progress and recent messages.": "Choose a session to see its progress and recent messages.",
+  "Monitor refresh failed. Showing the last available results.": "Monitor refresh failed. Showing the last available results.",
+  "Could not copy the command. Select and copy it manually.": "Could not copy the command. Select and copy it manually.",
+  "Only a partial transcript is available.": "Only a partial transcript is available.",
+  "Show latest 30 messages": "Show latest 30 messages",
+  "Show earlier messages": "Show earlier messages",
+  "Turn finished": "Turn finished",
+  "The open session is outside the current filters.": "The open session is outside the current filters.",
+  "Show in session list": "Show in session list",
+  "Clear session filters": "Clear session filters",
+  "Session unavailable": "Session unavailable",
+  "This session is outside the current index or its source is unavailable. Refresh to scan again.": "This session is outside the current index or its source is unavailable. Refresh to scan again."
 }
